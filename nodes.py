@@ -400,22 +400,52 @@ class HWMInference:
                 # Extract Gaussian parameters from splats dictionary
                 splats = outputs.get('splats', None)
                 if splats is not None and isinstance(splats, dict):
+                    # Debug: log splats structure in first batch
+                    if batch_idx == 0 and num_batches > 1:
+                        print(f"  Splats structure: {', '.join([f'{k}: {type(v).__name__}' for k, v in splats.items()])}")
+
                     # Extract individual Gaussian parameters
-                    # Note: Don't remove batch dim [0] here since we may have batches
-                    if 'means' in splats and splats['means'] is not None:
-                        all_gaussian_means.append(splats['means'])
-                    if 'scales' in splats and splats['scales'] is not None:
-                        all_gaussian_scales.append(splats['scales'])
-                    if 'quats' in splats and splats['quats'] is not None:
-                        all_gaussian_quats.append(splats['quats'])
-                    if 'opacities' in splats and splats['opacities'] is not None:
-                        all_gaussian_opacities.append(splats['opacities'])
+                    # Handle both tensor and list values
+                    def extract_param(key):
+                        """Extract parameter, converting list to tensor if needed."""
+                        if key not in splats or splats[key] is None:
+                            return None
+                        val = splats[key]
+                        # If it's a list, convert to tensor
+                        if isinstance(val, list):
+                            if len(val) == 0:
+                                return None
+                            # If list contains tensors, stack them
+                            if isinstance(val[0], torch.Tensor):
+                                return torch.stack(val)
+                            # Otherwise convert the list directly
+                            return torch.tensor(val)
+                        return val
+
+                    means = extract_param('means')
+                    if means is not None:
+                        all_gaussian_means.append(means)
+
+                    scales = extract_param('scales')
+                    if scales is not None:
+                        all_gaussian_scales.append(scales)
+
+                    quats = extract_param('quats')
+                    if quats is not None:
+                        all_gaussian_quats.append(quats)
+
+                    opacities = extract_param('opacities')
+                    if opacities is not None:
+                        all_gaussian_opacities.append(opacities)
 
                     # Extract colors - prefer 'sh' (spherical harmonics) over 'colors'
-                    if 'sh' in splats and splats['sh'] is not None:
-                        all_gaussian_colors.append(splats['sh'])
-                    elif 'colors' in splats and splats['colors'] is not None:
-                        all_gaussian_colors.append(splats['colors'])
+                    sh = extract_param('sh')
+                    if sh is not None:
+                        all_gaussian_colors.append(sh)
+                    else:
+                        colors = extract_param('colors')
+                        if colors is not None:
+                            all_gaussian_colors.append(colors)
 
                 # Clear batch memory
                 if num_batches > 1:
@@ -431,14 +461,34 @@ class HWMInference:
                 if len(tensor_list) == 1:
                     return tensor_list[0]
 
+                # Ensure all items are tensors
+                tensors = []
+                for item in tensor_list:
+                    if isinstance(item, torch.Tensor):
+                        tensors.append(item)
+                    elif isinstance(item, list):
+                        # Convert list to tensor
+                        if len(item) > 0 and isinstance(item[0], torch.Tensor):
+                            tensors.append(torch.stack(item))
+                        else:
+                            tensors.append(torch.tensor(item))
+                    else:
+                        print(f"Warning: Skipping non-tensor item of type {type(item)}")
+                        continue
+
+                if len(tensors) == 0:
+                    return None
+                if len(tensors) == 1:
+                    return tensors[0]
+
                 # Handle different tensor shapes - some may have [1, N, ...] format
-                first_shape = tensor_list[0].shape
+                first_shape = tensors[0].shape
                 if len(first_shape) > 1 and first_shape[0] == 1:
                     # Concatenate along dimension 1 (the N dimension in [1, N, ...])
-                    return torch.cat(tensor_list, dim=1)
+                    return torch.cat(tensors, dim=1)
                 else:
                     # Concatenate along dimension 0 (batch dimension)
-                    return torch.cat(tensor_list, dim=dim)
+                    return torch.cat(tensors, dim=dim)
 
             depth = concat_tensors(all_depth)
             normals = concat_tensors(all_normals)

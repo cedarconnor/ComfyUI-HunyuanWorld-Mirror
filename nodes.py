@@ -647,6 +647,11 @@ class SavePointCloud:
     ) -> Tuple[str]:
         """Save point cloud to file with optional confidence filtering."""
 
+        # Check if 3D points are available
+        if points3d is None:
+            print("⚠ Warning: 3D points not available - skipping export")
+            return ("",)
+
         # Convert to numpy
         points_np = tensor_to_numpy(points3d)
         colors_np = tensor_to_numpy(colors) if colors is not None else None
@@ -728,6 +733,18 @@ class Save3DGaussians:
         filter_scale_percentile: float
     ) -> Tuple[str]:
         """Save Gaussian parameters to PLY file with outlier filtering."""
+
+        # Check if gaussians are available
+        if gaussians is None or gaussians.get('means') is None:
+            print("⚠ Warning: Gaussian parameters not available - skipping export")
+            print("  Note: 3D Gaussian Splatting may require:")
+            print("    - Multiple input images (2+ views)")
+            print("    - Specific model configuration")
+            print("    - Sufficient texture/feature variation")
+            print("  Continuing with available outputs (depth, normals, points3D)...")
+
+            # Return placeholder path to indicate skipped
+            return ("",)
 
         # Extract parameters
         means = tensor_to_numpy(gaussians['means'])
@@ -863,6 +880,16 @@ class SaveCameraParams:
     ) -> Tuple[str]:
         """Save camera parameters to file."""
 
+        # Check if camera parameters are available
+        if camera_poses is None:
+            print("⚠ Warning: Camera poses not available - skipping export")
+            return ("",)
+
+        if camera_intrinsics is None:
+            print("⚠ Warning: Camera intrinsics not available - skipping export")
+            print("  Note: Intrinsics may require specific model configuration")
+            return ("",)
+
         # Convert to numpy
         poses_np = tensor_to_numpy(camera_poses)
         intrinsics_np = tensor_to_numpy(camera_intrinsics)
@@ -957,6 +984,20 @@ class SaveCOLMAPReconstruction:
         """Export COLMAP reconstruction."""
         import os
         from src.utils.build_pycolmap_recon import build_pycolmap_reconstruction
+
+        # Check if required data is available
+        if pts3d is None:
+            print("⚠ Warning: 3D points not available - skipping COLMAP export")
+            return ("",)
+
+        if camera_poses is None:
+            print("⚠ Warning: Camera poses not available - skipping COLMAP export")
+            return ("",)
+
+        if camera_intrinsics is None:
+            print("⚠ Warning: Camera intrinsics not available - skipping COLMAP export")
+            print("  Note: COLMAP export requires intrinsics for camera calibration")
+            return ("",)
 
         # Convert to numpy
         pts3d_np = tensor_to_numpy(pts3d)  # (B, H, W, 3)

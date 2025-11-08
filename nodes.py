@@ -371,6 +371,13 @@ class SavePointCloud:
                     "default": "ply",
                     "tooltip": "File format for the point cloud. PLY is most common and supports colors/normals. OBJ works with most 3D software. XYZ is simple text format (just coordinates)."
                 }),
+                "confidence_threshold": ("FLOAT", {
+                    "default": 0.0,
+                    "min": 0.0,
+                    "max": 100.0,
+                    "step": 1.0,
+                    "tooltip": "Filter out low-confidence points. 0=keep all points, 50=keep top 50%, 95=keep only very confident points. Higher values remove more noise but may lose details."
+                }),
             },
             "optional": {
                 "colors": ("IMAGE", {
@@ -378,6 +385,9 @@ class SavePointCloud:
                 }),
                 "normals": ("NORMALS", {
                     "tooltip": "Optional: Surface normal directions for each point. Helps with lighting and rendering in 3D viewers. Only supported in PLY format."
+                }),
+                "confidence": ("*", {
+                    "tooltip": "Optional: Confidence values for each point from HWM Inference (pts3d_conf output). Used with confidence_threshold to filter low-quality points."
                 }),
             },
         }
@@ -393,15 +403,18 @@ class SavePointCloud:
         points3d: torch.Tensor,
         filepath: str,
         format: str,
+        confidence_threshold: float,
         colors: Optional[torch.Tensor] = None,
-        normals: Optional[torch.Tensor] = None
+        normals: Optional[torch.Tensor] = None,
+        confidence: Optional[torch.Tensor] = None
     ) -> Tuple[str]:
-        """Save point cloud to file."""
+        """Save point cloud to file with optional confidence filtering."""
 
         # Convert to numpy
         points_np = tensor_to_numpy(points3d)
         colors_np = tensor_to_numpy(colors) if colors is not None else None
         normals_np = tensor_to_numpy(normals) if normals is not None else None
+        confidence_np = tensor_to_numpy(confidence) if confidence is not None else None
 
         # Ensure file extension matches format
         if not filepath.endswith(f'.{format}'):
@@ -410,7 +423,9 @@ class SavePointCloud:
         # Save based on format
         if format == "ply":
             saved_path = ExportUtils.save_point_cloud_ply(
-                filepath, points_np, colors_np, normals_np
+                filepath, points_np, colors_np, normals_np,
+                confidence=confidence_np,
+                confidence_threshold=confidence_threshold
             )
         elif format == "obj":
             saved_path = ExportUtils.save_point_cloud_obj(
@@ -452,6 +467,13 @@ class Save3DGaussians:
                     "default": False,
                     "tooltip": "Whether to include Spherical Harmonics coefficients for view-dependent appearance. Enable for more realistic lighting effects, disable for smaller files and faster loading."
                 }),
+                "filter_scale_percentile": ("FLOAT", {
+                    "default": 95.0,
+                    "min": 0.0,
+                    "max": 100.0,
+                    "step": 1.0,
+                    "tooltip": "Remove Gaussians with unusually large scales (outliers/artifacts). 95=keep 95% of Gaussians, 90=more aggressive filtering. 0=disable filtering, 100=keep all."
+                }),
             },
         }
 
@@ -465,9 +487,10 @@ class Save3DGaussians:
         self,
         gaussians: Dict[str, torch.Tensor],
         filepath: str,
-        include_sh: bool
+        include_sh: bool,
+        filter_scale_percentile: float
     ) -> Tuple[str]:
-        """Save Gaussian parameters to PLY file."""
+        """Save Gaussian parameters to PLY file with outlier filtering."""
 
         # Extract parameters
         means = tensor_to_numpy(gaussians['means'])
@@ -484,9 +507,10 @@ class Save3DGaussians:
         if not filepath.endswith('.ply'):
             filepath = filepath.rsplit('.', 1)[0] + '.ply'
 
-        # Save
+        # Save with scale filtering
         saved_path = ExportUtils.save_gaussian_ply(
-            filepath, means, scales, quats, colors, opacities, sh
+            filepath, means, scales, quats, colors, opacities, sh,
+            filter_scale_percentile=filter_scale_percentile
         )
 
         return (saved_path,)

@@ -366,16 +366,20 @@ class ExportUtils:
             camera = {
                 'frame_id': i,
                 'pose': poses[i].tolist(),
-                'intrinsics': intrinsics[i].tolist(),
-                'focal_length': [
+            }
+
+            # Only add intrinsics if available
+            if intrinsics is not None:
+                camera['intrinsics'] = intrinsics[i].tolist()
+                camera['focal_length'] = [
                     float(intrinsics[i, 0, 0]),
                     float(intrinsics[i, 1, 1])
-                ],
-                'principal_point': [
+                ]
+                camera['principal_point'] = [
                     float(intrinsics[i, 0, 2]),
                     float(intrinsics[i, 1, 2])
-                ],
-            }
+                ]
+
             cameras.append(camera)
 
         data = {

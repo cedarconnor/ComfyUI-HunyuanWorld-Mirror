@@ -140,7 +140,15 @@ class InferenceWrapper:
 
         # Run inference
         try:
-            outputs = self.model(images, condition=condition, **kwargs)
+            # Prepare views dict as expected by WorldMirror
+            views = {'img': images}
+
+            # Convert condition to cond_flags format
+            # condition is [pose, depth, intrinsic], default to [0, 0, 0]
+            cond_flags = condition if condition is not None else [0, 0, 0]
+
+            # Call model with correct signature
+            outputs = self.model(views, cond_flags=cond_flags, is_inference=True)
         except Exception as e:
             print(f"Inference error: {e}")
             raise

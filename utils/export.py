@@ -262,19 +262,20 @@ class ExportUtils:
             scales = scales[filter_mask]
             quats = quats[filter_mask]
             colors = colors[filter_mask]
+            opacities = opacities[filter_mask]
+
+            # Filter sh if provided
+            if sh is not None:
+                sh = sh[filter_mask]
 
             print(f"  Scale filtering: {filter_mask.sum()}/{num_before} Gaussians below {filter_scale_percentile}th percentile")
 
         num_gaussians = len(means)
 
+        # Reshape opacities after filtering
         if opacities.ndim == 1:
             opacities = opacities.reshape(-1, 1)
-        opacities = opacities[filter_mask] if filter_scale_percentile > 0 and filter_scale_percentile < 100 else opacities
         opacities = opacities.astype(np.float32)
-
-        # Filter sh if provided
-        if sh is not None and filter_scale_percentile > 0 and filter_scale_percentile < 100:
-            sh = sh[filter_mask]
 
         # Build vertex data
         vertex_data = [

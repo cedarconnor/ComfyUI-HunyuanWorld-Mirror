@@ -238,40 +238,7 @@ class ExportUtils:
             )
 
         Path(filepath).parent.mkdir(parents=True, exist_ok=True)
-​
- |  | 
-242
- 
-244
- 
-        # Check if gaussians data is available
-245
- 
-        if means is None:
-246
- 
-            raise ValueError("Gaussian means are None - model may not have 3DGS enabled or single image input doesn't generate gaussians")
-247
- 
-​
-248
- 
-        num_gaussians = len(means)
-249
- 
-​
-250
- 
-251
-        # Ensure correct shapes
-252
-        means = means.reshape(-1, 3).astype(np.float32)
-253
-        scales = scales.reshape(-1, 3).astype(np.float32)
-254
-        quats = quats.reshape(-1, 4).astype(np.float32)
-255
-        colors = colors.reshape(-1, 3).astype(np.float32)
+
         # Check if gaussians data is available
         if means is None:
             raise ValueError("Gaussian means are None - model may not have 3DGS enabled or single image input doesn't generate gaussians")

@@ -276,6 +276,17 @@ def _load_safetensors_model(model_path: str, device: str, precision: str) -> Any
 
     # Try to import model class
     try:
+        # Debug: Print Python path info
+        import sys
+        print(f"\n[DEBUG] Python path check:")
+        print(f"  Custom node dir in sys.path: {str(_custom_node_dir) in sys.path}")
+        print(f"  Custom node dir: {_custom_node_dir}")
+        print(f"  src dir exists: {(_custom_node_dir / 'src').exists()}")
+        print(f"  src/__init__.py exists: {(_custom_node_dir / 'src' / '__init__.py').exists()}")
+        print(f"  First 3 sys.path entries:")
+        for i, p in enumerate(sys.path[:3]):
+            print(f"    [{i}] {p}")
+
         from src.models.models.worldmirror import WorldMirror
 
         # Create model instance and load weights

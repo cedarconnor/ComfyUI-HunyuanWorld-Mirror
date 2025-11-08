@@ -212,6 +212,10 @@ class ExportUtils:
 
         Path(filepath).parent.mkdir(parents=True, exist_ok=True)
 
+        # Check if gaussians data is available
+        if means is None:
+            raise ValueError("Gaussian means are None - model may not have 3DGS enabled or single image input doesn't generate gaussians")
+
         num_gaussians = len(means)
 
         # Ensure correct shapes

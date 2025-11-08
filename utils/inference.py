@@ -281,28 +281,40 @@ def _load_safetensors_model(model_path: str, device: str, precision: str) -> Any
 
     # Try to import model class
     try:
-        # CRITICAL: Ensure our directory is FIRST in sys.path
-        # Other custom nodes pollute sys.path, so we must fix it right before import
-        import sys
-        _node_str = str(_custom_node_dir)
+        # Use a context manager to temporarily ensure our directory is first in sys.path
+        # This is cleaner than fighting with sys.path globally
+        import contextlib
 
-        # Remove any existing instances
-        while _node_str in sys.path:
-            sys.path.remove(_node_str)
+        @contextlib.contextmanager
+        def _ensure_path_priority():
+            """Temporarily ensure custom node dir is first in sys.path."""
+            _node_str = str(_custom_node_dir)
 
-        # Insert at position 0
-        sys.path.insert(0, _node_str)
+            # Save original sys.path
+            original_path = sys.path.copy()
 
-        # Debug: Print Python path info
-        print(f"\n[DEBUG] Python path check (after fix):")
+            # Remove any existing instances of our path
+            while _node_str in sys.path:
+                sys.path.remove(_node_str)
+
+            # Insert at position 0
+            sys.path.insert(0, _node_str)
+
+            try:
+                yield
+            finally:
+                # Restore original sys.path
+                sys.path[:] = original_path
+
+        print(f"\n[DEBUG] Loading WorldMirror with path priority...")
         print(f"  Custom node dir: {_custom_node_dir}")
         print(f"  src dir exists: {(_custom_node_dir / 'src').exists()}")
-        print(f"  src/__init__.py exists: {(_custom_node_dir / 'src' / '__init__.py').exists()}")
-        print(f"  First 3 sys.path entries:")
-        for i, p in enumerate(sys.path[:3]):
-            print(f"    [{i}] {p}")
 
-        from src.models.models.worldmirror import WorldMirror
+        # Import with our directory guaranteed to be first
+        with _ensure_path_priority():
+            from src.models.models.worldmirror import WorldMirror
+
+        print(f"[DEBUG] Successfully imported WorldMirror class!")
 
         # Create model instance and load weights
         model = WorldMirror()

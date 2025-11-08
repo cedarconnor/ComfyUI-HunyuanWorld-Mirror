@@ -360,14 +360,13 @@ def _load_safetensors_model(model_path: str, device: str, precision: str) -> Any
                         "1. Close ComfyUI completely\n"
                         "2. Delete the __pycache__ folders in the custom node directory\n"
                         "3. Restart ComfyUI\n"
-                        "4. Enable 'force_reload' and load the model again\n\n"
+                        "4. Enable 'force_reload' and load the model again\n"
+                        + "="*70 + "\n"
                     )
                     print(error_msg)
 
-                raise NotImplementedError(
-                    "This will provide the WorldMirror model class needed to run inference.\n"
-                    "="*70 + "\n"
-                )
+                # Raise a silent error (message already printed above)
+                raise NotImplementedError("Model architecture not available - see error above")
 
         model = SafetensorsModelWrapper(state_dict, device, precision)
 

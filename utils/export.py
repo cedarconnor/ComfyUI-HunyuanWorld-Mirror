@@ -245,11 +245,12 @@ class ExportUtils:
 
         num_gaussians = len(means)
 
-        # Ensure correct shapes
+        # Ensure correct shapes BEFORE filtering
         means = means.reshape(-1, 3).astype(np.float32)
         scales = scales.reshape(-1, 3).astype(np.float32)
         quats = quats.reshape(-1, 4).astype(np.float32)
         colors = colors.reshape(-1, 3).astype(np.float32)
+        opacities = opacities.reshape(-1).astype(np.float32)  # Flatten to 1D for filtering
 
         # Filter out Gaussians with large scales (outliers) - IMPROVEMENT FROM OFFICIAL REPO
         if filter_scale_percentile > 0 and filter_scale_percentile < 100:
@@ -272,10 +273,8 @@ class ExportUtils:
 
         num_gaussians = len(means)
 
-        # Reshape opacities after filtering
-        if opacities.ndim == 1:
-            opacities = opacities.reshape(-1, 1)
-        opacities = opacities.astype(np.float32)
+        # Reshape opacities to 2D for PLY export (already filtered and flattened)
+        opacities = opacities.reshape(-1, 1)
 
         # Build vertex data
         vertex_data = [

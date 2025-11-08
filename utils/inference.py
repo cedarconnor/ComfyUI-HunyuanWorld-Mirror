@@ -4,7 +4,9 @@ Model loading, caching, and inference utilities.
 Provides efficient model management and inference wrappers for HunyuanWorld-Mirror.
 """
 
+import os
 import torch
+from pathlib import Path
 from typing import Dict, Optional, Any, Tuple
 from .memory import MemoryManager
 
@@ -166,9 +168,6 @@ def load_model(
     Returns:
         Tuple of (model, cache_key)
     """
-    import os
-    from pathlib import Path
-
     # Determine device
     if device == "auto":
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -229,9 +228,6 @@ def _resolve_model_path(model_name: str) -> str:
     3. ComfyUI/models/HunyuanWorld-Mirror/HunyuanWorld-Mirror.safetensors
     4. Returns model_name as-is (for HuggingFace Hub)
     """
-    import os
-    from pathlib import Path
-
     # If it's already a valid path, use it
     if os.path.exists(model_name):
         return os.path.abspath(model_name)
@@ -393,7 +389,6 @@ def _load_from_hub(model_name: str, device: str, precision: str, cache_dir: Opti
 
     # Set cache directory if provided
     if cache_dir:
-        import os
         os.environ['HF_HOME'] = cache_dir
         os.environ['TRANSFORMERS_CACHE'] = cache_dir
 

@@ -34,10 +34,12 @@ class ExportUtils:
         points: np.ndarray,
         colors: Optional[np.ndarray] = None,
         normals: Optional[np.ndarray] = None,
-        binary: bool = True
+        binary: bool = True,
+        confidence: Optional[np.ndarray] = None,
+        confidence_threshold: float = 0.0
     ) -> str:
         """
-        Save point cloud to PLY file.
+        Save point cloud to PLY file with automatic validity filtering.
 
         Args:
             filepath: Output file path (.ply)
@@ -45,6 +47,8 @@ class ExportUtils:
             colors: Point colors [N, 3] (RGB in range [0, 1] or [0, 255])
             normals: Point normals [N, 3] (normalized vectors)
             binary: Save in binary format (more compact)
+            confidence: Confidence values [N] (optional)
+            confidence_threshold: Minimum confidence percentile (0-100, default 0=keep all)
 
         Returns:
             filepath: Path to saved file
@@ -60,6 +64,27 @@ class ExportUtils:
 
         # Flatten points
         points = points.reshape(-1, 3).astype(np.float32)
+
+        # Filter out invalid points (NaN, Inf) - IMPROVEMENT FROM OFFICIAL REPO
+        valid_mask = np.isfinite(points).all(axis=1)
+
+        # Apply confidence filtering if provided - NEW FEATURE
+        if confidence is not None and confidence_threshold > 0:
+            confidence = confidence.reshape(-1)
+            conf_percentile = np.percentile(confidence, confidence_threshold)
+            confidence_mask = confidence >= conf_percentile
+            valid_mask = valid_mask & confidence_mask
+            print(f"  Confidence filtering: {confidence_mask.sum()}/{len(confidence)} points above {confidence_threshold}th percentile")
+
+        points = points[valid_mask]
+
+        # Handle empty point cloud - IMPROVEMENT FROM OFFICIAL REPO
+        if len(points) == 0:
+            print("  Warning: No valid points, creating placeholder point")
+            points = np.array([[0, 0, 0]], dtype=np.float32)
+            colors = np.array([[255, 255, 255]], dtype=np.uint8) if colors is not None else None
+            normals = None
+
         num_points = len(points)
 
         # Build vertex data list
@@ -71,7 +96,7 @@ class ExportUtils:
 
         # Add colors if provided
         if colors is not None:
-            colors = colors.reshape(-1, 3)
+            colors = colors.reshape(-1, 3)[valid_mask] if len(colors) > 1 else colors
             # Convert to 0-255 range if needed
             if colors.max() <= 1.0:
                 colors = (colors * 255).astype(np.uint8)
@@ -85,8 +110,8 @@ class ExportUtils:
             ])
 
         # Add normals if provided
-        if normals is not None:
-            normals = normals.reshape(-1, 3).astype(np.float32)
+        if normals is not None and len(normals) > 0:
+            normals = normals.reshape(-1, 3)[valid_mask].astype(np.float32)
             vertex_data.extend([
                 ('nx', normals[:, 0]),
                 ('ny', normals[:, 1]),
@@ -105,7 +130,7 @@ class ExportUtils:
         # Write file
         PlyData([el], text=not binary).write(filepath)
 
-        print(f"✓ Saved point cloud: {filepath} ({num_points} points)")
+        print(f"✓ Saved point cloud: {filepath} ({num_points} valid points)")
         return filepath
 
     @staticmethod
@@ -187,10 +212,11 @@ class ExportUtils:
         quats: np.ndarray,
         colors: np.ndarray,
         opacities: np.ndarray,
-        sh: Optional[np.ndarray] = None
+        sh: Optional[np.ndarray] = None,
+        filter_scale_percentile: float = 95.0
     ) -> str:
         """
-        Save 3D Gaussians in standard 3DGS PLY format.
+        Save 3D Gaussians in standard 3DGS PLY format with outlier filtering.
 
         Args:
             filepath: Output file path (.ply)
@@ -200,6 +226,7 @@ class ExportUtils:
             colors: RGB colors [N, 3] or SH coefficients
             opacities: Opacity values [N, 1] or [N]
             sh: Spherical harmonics [N, SH_COEFFS, 3] (optional)
+            filter_scale_percentile: Filter Gaussians with scales > this percentile (0-100, default 95)
 
         Returns:
             filepath: Path to saved file
@@ -211,7 +238,40 @@ class ExportUtils:
             )
 
         Path(filepath).parent.mkdir(parents=True, exist_ok=True)
-
+​
+ |  | 
+242
+ 
+244
+ 
+        # Check if gaussians data is available
+245
+ 
+        if means is None:
+246
+ 
+            raise ValueError("Gaussian means are None - model may not have 3DGS enabled or single image input doesn't generate gaussians")
+247
+ 
+​
+248
+ 
+        num_gaussians = len(means)
+249
+ 
+​
+250
+ 
+251
+        # Ensure correct shapes
+252
+        means = means.reshape(-1, 3).astype(np.float32)
+253
+        scales = scales.reshape(-1, 3).astype(np.float32)
+254
+        quats = quats.reshape(-1, 4).astype(np.float32)
+255
+        colors = colors.reshape(-1, 3).astype(np.float32)
         # Check if gaussians data is available
         if means is None:
             raise ValueError("Gaussian means are None - model may not have 3DGS enabled or single image input doesn't generate gaussians")
@@ -224,9 +284,30 @@ class ExportUtils:
         quats = quats.reshape(-1, 4).astype(np.float32)
         colors = colors.reshape(-1, 3).astype(np.float32)
 
+        # Filter out Gaussians with large scales (outliers) - IMPROVEMENT FROM OFFICIAL REPO
+        if filter_scale_percentile > 0 and filter_scale_percentile < 100:
+            max_scales = np.max(scales, axis=1)
+            scale_threshold = np.percentile(max_scales, filter_scale_percentile)
+            filter_mask = max_scales <= scale_threshold
+
+            num_before = len(means)
+            means = means[filter_mask]
+            scales = scales[filter_mask]
+            quats = quats[filter_mask]
+            colors = colors[filter_mask]
+
+            print(f"  Scale filtering: {filter_mask.sum()}/{num_before} Gaussians below {filter_scale_percentile}th percentile")
+
+        num_gaussians = len(means)
+
         if opacities.ndim == 1:
             opacities = opacities.reshape(-1, 1)
+        opacities = opacities[filter_mask] if filter_scale_percentile > 0 and filter_scale_percentile < 100 else opacities
         opacities = opacities.astype(np.float32)
+
+        # Filter sh if provided
+        if sh is not None and filter_scale_percentile > 0 and filter_scale_percentile < 100:
+            sh = sh[filter_mask]
 
         # Build vertex data
         vertex_data = [

@@ -284,6 +284,13 @@ class HWMInference:
                     "max": 2**32 - 1,
                     "tooltip": "Random seed for reproducible results. Set to -1 for random seed each time, or use a specific number (e.g., 42) to get the same results every run."
                 }),
+                "batch_size": ("INT", {
+                    "default": 16,
+                    "min": 1,
+                    "max": 128,
+                    "step": 1,
+                    "tooltip": "Process images in batches of this size to avoid OOM errors. Lower values use less memory but take longer. Recommended: 8-16 for large sequences (50+ images), 32+ for smaller sequences."
+                }),
             },
         }
 
@@ -296,9 +303,10 @@ class HWMInference:
         self,
         model: Any,
         images: torch.Tensor,
-        seed: int
+        seed: int,
+        batch_size: int
     ) -> Tuple:
-        """Run inference on image sequence."""
+        """Run inference on image sequence with batching support."""
 
         print("\n" + "=" * 60)
         print("HunyuanWorld-Mirror Inference")
@@ -314,52 +322,124 @@ class HWMInference:
         B, H, W, C = images.shape
         print(f"Input: {B} images at {H}x{W}x{C}")
 
-        # Estimate memory
+        # Get device info
         device = next(model.parameters()).device
         precision = "fp16" if next(model.parameters()).dtype == torch.float16 else "fp32"
 
-        estimated_mem = MemoryManager.estimate_sequence_memory(B, H, W, precision)
-        print(f"Estimated memory: {estimated_mem:.2f}GB")
+        # Determine number of batches
+        num_batches = (B + batch_size - 1) // batch_size
+
+        if num_batches > 1:
+            print(f"Processing in {num_batches} batches of {batch_size} images each")
+
+        # Estimate memory per batch
+        estimated_mem = MemoryManager.estimate_sequence_memory(min(B, batch_size), H, W, precision)
+        print(f"Estimated memory per batch: {estimated_mem:.2f}GB")
 
         # Check memory
         available, msg = MemoryManager.check_memory_available(estimated_mem)
         if not available:
             print(f"Warning: {msg}")
 
-        # Convert to HWM format
-        print("Converting to HWM format...")
-        hwm_images = comfy_to_hwm(images)  # [B, H, W, C] -> [1, N, 3, H, W]
-
-        # Run inference
-        print("Running inference...")
-        MemoryManager.print_memory_stats("Before inference - ")
-
         try:
-            with torch.no_grad():
-                # Create inference wrapper
-                wrapper = InferenceWrapper(model, str(device), precision)
+            # Create inference wrapper
+            wrapper = InferenceWrapper(model, str(device), precision)
 
-                # Run inference (no conditions for basic mode)
-                outputs = wrapper.infer(hwm_images, condition=None)
+            # Process batches
+            all_depth = []
+            all_normals = []
+            all_pts3d = []
+            all_poses = []
+            all_intrinsics = []
+            all_gaussian_means = []
+            all_gaussian_scales = []
+            all_gaussian_quats = []
+            all_gaussian_colors = []
+            all_gaussian_opacities = []
 
-            MemoryManager.print_memory_stats("After inference - ")
+            for batch_idx in range(num_batches):
+                start_idx = batch_idx * batch_size
+                end_idx = min(start_idx + batch_size, B)
+                batch_images = images[start_idx:end_idx]
 
-            # Extract outputs
-            # Note: Actual output keys depend on the real model implementation
-            # These are based on the design doc specifications
-            depth = outputs.get('depth', outputs.get('pred_depth', None))
-            normals = outputs.get('normals', outputs.get('pred_normals', None))
-            pts3d = outputs.get('pts3d', outputs.get('pred_pts3d', None))
-            poses = outputs.get('camera_poses', outputs.get('pred_poses', None))
-            intrinsics = outputs.get('camera_intrinsics', outputs.get('pred_intrinsics', None))
+                if num_batches > 1:
+                    print(f"Processing batch {batch_idx + 1}/{num_batches} (frames {start_idx}-{end_idx-1})...")
 
-            # Extract Gaussian parameters
+                # Convert to HWM format
+                hwm_images = comfy_to_hwm(batch_images)  # [B, H, W, C] -> [1, N, 3, H, W]
+
+                # Run inference
+                MemoryManager.print_memory_stats("  GPU Memory - ")
+
+                with torch.no_grad():
+                    outputs = wrapper.infer(hwm_images, condition=None)
+
+                # Extract and collect outputs
+                depth = outputs.get('depth', outputs.get('pred_depth', None))
+                normals = outputs.get('normals', outputs.get('pred_normals', None))
+                pts3d = outputs.get('pts3d', outputs.get('pred_pts3d', None))
+                poses = outputs.get('camera_poses', outputs.get('pred_poses', None))
+                intrinsics = outputs.get('camera_intrinsics', outputs.get('pred_intrinsics', None))
+
+                if depth is not None:
+                    all_depth.append(depth)
+                if normals is not None:
+                    all_normals.append(normals)
+                if pts3d is not None:
+                    all_pts3d.append(pts3d)
+                if poses is not None:
+                    all_poses.append(poses)
+                if intrinsics is not None:
+                    all_intrinsics.append(intrinsics)
+
+                # Collect Gaussian parameters
+                if outputs.get('gaussian_means', None) is not None:
+                    all_gaussian_means.append(outputs['gaussian_means'])
+                if outputs.get('gaussian_scales', None) is not None:
+                    all_gaussian_scales.append(outputs['gaussian_scales'])
+                if outputs.get('gaussian_quats', None) is not None:
+                    all_gaussian_quats.append(outputs['gaussian_quats'])
+                if outputs.get('gaussian_colors', None) is not None:
+                    all_gaussian_colors.append(outputs['gaussian_colors'])
+                if outputs.get('gaussian_opacities', None) is not None:
+                    all_gaussian_opacities.append(outputs['gaussian_opacities'])
+
+                # Clear batch memory
+                if num_batches > 1:
+                    MemoryManager.clear_cache()
+
+            # Concatenate results along the batch dimension
+            print("Concatenating batch results...")
+
+            def concat_tensors(tensor_list, dim=0):
+                """Concatenate tensors along specified dimension if list is not empty."""
+                if len(tensor_list) == 0:
+                    return None
+                if len(tensor_list) == 1:
+                    return tensor_list[0]
+
+                # Handle different tensor shapes - some may have [1, N, ...] format
+                first_shape = tensor_list[0].shape
+                if len(first_shape) > 1 and first_shape[0] == 1:
+                    # Concatenate along dimension 1 (the N dimension in [1, N, ...])
+                    return torch.cat(tensor_list, dim=1)
+                else:
+                    # Concatenate along dimension 0 (batch dimension)
+                    return torch.cat(tensor_list, dim=dim)
+
+            depth = concat_tensors(all_depth)
+            normals = concat_tensors(all_normals)
+            pts3d = concat_tensors(all_pts3d)
+            poses = concat_tensors(all_poses)
+            intrinsics = concat_tensors(all_intrinsics)
+
+            # Concatenate Gaussian parameters
             gaussian_params = {
-                'means': outputs.get('gaussian_means', None),
-                'scales': outputs.get('gaussian_scales', None),
-                'quats': outputs.get('gaussian_quats', None),
-                'colors': outputs.get('gaussian_colors', None),
-                'opacities': outputs.get('gaussian_opacities', None),
+                'means': concat_tensors(all_gaussian_means),
+                'scales': concat_tensors(all_gaussian_scales),
+                'quats': concat_tensors(all_gaussian_quats),
+                'colors': concat_tensors(all_gaussian_colors),
+                'opacities': concat_tensors(all_gaussian_opacities),
             }
 
             print("✓ Inference complete")

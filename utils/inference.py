@@ -157,7 +157,7 @@ def load_model(
     Load HunyuanWorld-Mirror model with caching.
 
     Args:
-        model_name: Model identifier or path
+        model_name: Model identifier, path, or filename
         device: Target device ('auto', 'cuda', 'cpu')
         precision: Precision mode ('fp32', 'fp16', 'bf16')
         cache_dir: Custom cache directory for model files
@@ -166,53 +166,41 @@ def load_model(
     Returns:
         Tuple of (model, cache_key)
     """
+    import os
+    from pathlib import Path
+
     # Determine device
     if device == "auto":
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    # Create cache key
-    cache_key = f"{model_name}_{device}_{precision}"
+    # Resolve model path
+    model_path = _resolve_model_path(model_name)
+
+    # Create cache key based on actual path
+    cache_key = f"{model_path}_{device}_{precision}"
 
     # Check cache
     if use_cache:
         cached_model = ModelCache.get(cache_key)
         if cached_model is not None:
-            print(f"✓ Model loaded from cache: {cache_key}")
+            print(f"✓ Model loaded from cache: {os.path.basename(model_path)}")
             return cached_model, cache_key
 
     # Load model
-    print(f"Loading HunyuanWorld-Mirror model from: {model_name}")
+    print(f"Loading HunyuanWorld-Mirror model from: {model_path}")
     print(f"Device: {device}, Precision: {precision}")
 
     try:
-        # Set cache directory if provided
-        if cache_dir:
-            import os
-            os.environ['HF_HOME'] = cache_dir
-            os.environ['TRANSFORMERS_CACHE'] = cache_dir
-
-        # Import model class
-        # NOTE: This assumes the HunyuanWorld-Mirror model is properly installed
-        # Users need to clone and install the official repository
-        try:
-            from src.models.models.worldmirror import WorldMirror
-        except ImportError:
-            raise ImportError(
-                "HunyuanWorld-Mirror model not found. Please install it by:\n"
-                "1. Clone: git clone https://github.com/Tencent-Hunyuan/HunyuanWorld-Mirror\n"
-                "2. Install: cd HunyuanWorld-Mirror && pip install -e .\n"
-                "Or make sure the model code is in your Python path."
-            )
-
-        # Load model
-        model = WorldMirror.from_pretrained(model_name)
-        model = model.to(device)
-
-        # Set precision
-        if precision == "fp16":
-            model = model.half()
-        elif precision == "bf16":
-            model = model.bfloat16()
+        # Load based on file type
+        if model_path.endswith('.safetensors'):
+            model = _load_safetensors_model(model_path, device, precision)
+        elif model_path.endswith('.pt') or model_path.endswith('.pth'):
+            model = _load_pytorch_model(model_path, device, precision)
+        elif os.path.isdir(model_path):
+            model = _load_from_directory(model_path, device, precision, cache_dir)
+        else:
+            # Try HuggingFace Hub
+            model = _load_from_hub(model_name, device, precision, cache_dir)
 
         # Set to eval mode
         model.eval()
@@ -229,6 +217,203 @@ def load_model(
     except Exception as e:
         print(f"✗ Error loading model: {e}")
         raise
+
+
+def _resolve_model_path(model_name: str) -> str:
+    """
+    Resolve model name to actual file path.
+
+    Checks in order:
+    1. Direct path (if exists)
+    2. ComfyUI/models/HunyuanWorld-Mirror/{model_name}
+    3. ComfyUI/models/HunyuanWorld-Mirror/HunyuanWorld-Mirror.safetensors
+    4. Returns model_name as-is (for HuggingFace Hub)
+    """
+    import os
+    from pathlib import Path
+
+    # If it's already a valid path, use it
+    if os.path.exists(model_name):
+        return os.path.abspath(model_name)
+
+    # Try to find ComfyUI models directory
+    # Work backwards from this file's location
+    current_dir = Path(__file__).parent.parent  # ComfyUI-HunyuanWorld-Mirror directory
+
+    # Look for ComfyUI root (should be parent of custom_nodes)
+    if current_dir.parent.name == "custom_nodes":
+        comfy_root = current_dir.parent.parent
+        models_dir = comfy_root / "models" / "HunyuanWorld-Mirror"
+
+        # Check various possible locations
+        candidates = [
+            models_dir / model_name,
+            models_dir / f"{model_name}.safetensors",
+            models_dir / "HunyuanWorld-Mirror.safetensors",
+        ]
+
+        for candidate in candidates:
+            if candidate.exists():
+                print(f"Found model at: {candidate}")
+                return str(candidate)
+
+    # Return as-is for HuggingFace Hub
+    return model_name
+
+
+def _load_safetensors_model(model_path: str, device: str, precision: str) -> Any:
+    """Load model from safetensors file."""
+    from safetensors.torch import load_file
+
+    print(f"Loading from safetensors: {os.path.basename(model_path)}")
+
+    # Load state dict
+    state_dict = load_file(model_path)
+
+    # Try to import model class
+    try:
+        from src.models.models.worldmirror import WorldMirror
+
+        # Create model instance and load weights
+        model = WorldMirror()
+        model.load_state_dict(state_dict)
+
+    except ImportError:
+        # Fallback: Create a simple wrapper that holds the state dict
+        print("Warning: WorldMirror class not found, loading weights only")
+        print("For full functionality, install: https://github.com/Tencent-Hunyuan/HunyuanWorld-Mirror")
+
+        class SafetensorsModelWrapper:
+            """Simple wrapper for loaded safetensors weights."""
+            def __init__(self, state_dict, device, precision):
+                self.state_dict = state_dict
+                self.device = device
+                self.precision = precision
+
+            def eval(self):
+                return self
+
+            def to(self, device):
+                self.device = device
+                return self
+
+            def half(self):
+                self.precision = "fp16"
+                return self
+
+            def bfloat16(self):
+                self.precision = "bf16"
+                return self
+
+            def __call__(self, *args, **kwargs):
+                raise NotImplementedError(
+                    "Model weights loaded but WorldMirror class not available.\n"
+                    "Please install: https://github.com/Tencent-Hunyuan/HunyuanWorld-Mirror"
+                )
+
+        model = SafetensorsModelWrapper(state_dict, device, precision)
+
+    # Move to device
+    if hasattr(model, 'to'):
+        model = model.to(device)
+
+    # Set precision
+    if precision == "fp16" and hasattr(model, 'half'):
+        model = model.half()
+    elif precision == "bf16" and hasattr(model, 'bfloat16'):
+        model = model.bfloat16()
+
+    return model
+
+
+def _load_pytorch_model(model_path: str, device: str, precision: str) -> Any:
+    """Load model from PyTorch checkpoint file."""
+    print(f"Loading from PyTorch checkpoint: {os.path.basename(model_path)}")
+
+    checkpoint = torch.load(model_path, map_location=device)
+
+    # Try to import model class
+    try:
+        from src.models.models.worldmirror import WorldMirror
+        model = WorldMirror()
+
+        # Handle different checkpoint formats
+        if isinstance(checkpoint, dict):
+            if 'model' in checkpoint:
+                model.load_state_dict(checkpoint['model'])
+            elif 'state_dict' in checkpoint:
+                model.load_state_dict(checkpoint['state_dict'])
+            else:
+                model.load_state_dict(checkpoint)
+        else:
+            model = checkpoint
+
+    except ImportError:
+        raise ImportError(
+            "WorldMirror class not found. Please install:\n"
+            "https://github.com/Tencent-Hunyuan/HunyuanWorld-Mirror"
+        )
+
+    model = model.to(device)
+
+    if precision == "fp16":
+        model = model.half()
+    elif precision == "bf16":
+        model = model.bfloat16()
+
+    return model
+
+
+def _load_from_directory(model_path: str, device: str, precision: str, cache_dir: Optional[str]) -> Any:
+    """Load model from directory (HuggingFace format)."""
+    print(f"Loading from directory: {model_path}")
+
+    try:
+        from src.models.models.worldmirror import WorldMirror
+        model = WorldMirror.from_pretrained(model_path)
+    except ImportError:
+        raise ImportError(
+            "WorldMirror class not found. Please install:\n"
+            "https://github.com/Tencent-Hunyuan/HunyuanWorld-Mirror"
+        )
+
+    model = model.to(device)
+
+    if precision == "fp16":
+        model = model.half()
+    elif precision == "bf16":
+        model = model.bfloat16()
+
+    return model
+
+
+def _load_from_hub(model_name: str, device: str, precision: str, cache_dir: Optional[str]) -> Any:
+    """Load model from HuggingFace Hub."""
+    print(f"Loading from HuggingFace Hub: {model_name}")
+
+    # Set cache directory if provided
+    if cache_dir:
+        import os
+        os.environ['HF_HOME'] = cache_dir
+        os.environ['TRANSFORMERS_CACHE'] = cache_dir
+
+    try:
+        from src.models.models.worldmirror import WorldMirror
+        model = WorldMirror.from_pretrained(model_name)
+    except ImportError:
+        raise ImportError(
+            "WorldMirror class not found. Please install:\n"
+            "https://github.com/Tencent-Hunyuan/HunyuanWorld-Mirror"
+        )
+
+    model = model.to(device)
+
+    if precision == "fp16":
+        model = model.half()
+    elif precision == "bf16":
+        model = model.bfloat16()
+
+    return model
 
 
 def prepare_model_inputs(

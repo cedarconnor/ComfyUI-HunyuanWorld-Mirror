@@ -111,6 +111,44 @@ pip install gsplat --index-url https://docs.gsplat.studio/whl/pt24cu124
 After restarting ComfyUI, you should see nodes under the category:
 **`HunyuanWorld-Mirror`**
 
+### Model Installation
+
+The HunyuanWorld-Mirror model files need to be placed in ComfyUI's models directory:
+
+1. **Create the models directory** (if it doesn't exist):
+   ```bash
+   mkdir -p ComfyUI/models/HunyuanWorld-Mirror
+   ```
+
+2. **Place your model file:**
+   - Supported formats: `.safetensors`, `.pt`, `.pth`
+   - Recommended location: `ComfyUI/models/HunyuanWorld-Mirror/HunyuanWorld-Mirror.safetensors`
+   - Alternative: `ComfyUI/models/HunyuanWorld-Mirror/<any-name>.safetensors`
+
+3. **Using the model in ComfyUI:**
+   - In the `LoadHunyuanWorldMirrorModel` node, you can use:
+     - **Filename only**: `HunyuanWorld-Mirror.safetensors` (automatically finds in models folder)
+     - **Full path**: `C:/ComfyUI/models/HunyuanWorld-Mirror/HunyuanWorld-Mirror.safetensors`
+     - **HuggingFace Hub**: `tencent/HunyuanWorld-Mirror` (downloads automatically)
+
+**Model Path Resolution:**
+
+The loader automatically searches for models in this order:
+1. Direct path (if the provided path exists)
+2. `ComfyUI/models/HunyuanWorld-Mirror/{model_name}`
+3. `ComfyUI/models/HunyuanWorld-Mirror/{model_name}.safetensors`
+4. `ComfyUI/models/HunyuanWorld-Mirror/HunyuanWorld-Mirror.safetensors` (default)
+5. HuggingFace Hub (if model_name looks like `org/repo`)
+
+**Example:**
+
+If your model is at: `ComfyUI/models/HunyuanWorld-Mirror/HunyuanWorld-Mirror.safetensors`
+
+You can use any of these in the model_name field:
+- `HunyuanWorld-Mirror.safetensors`
+- `HunyuanWorld-Mirror`
+- Leave default and it will auto-detect
+
 ---
 
 ## Quick Start

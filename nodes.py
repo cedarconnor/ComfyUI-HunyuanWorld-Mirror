@@ -40,8 +40,9 @@ class LoadHunyuanWorldMirrorModel:
         return {
             "required": {
                 "model_name": ("STRING", {
-                    "default": "tencent/HunyuanWorld-Mirror",
-                    "multiline": False
+                    "default": "HunyuanWorld-Mirror",
+                    "multiline": False,
+                    "tooltip": "Model name, filename, or path. Checks ComfyUI/models/HunyuanWorld-Mirror/ first."
                 }),
                 "device": (["auto", "cuda", "cpu"], {"default": "auto"}),
                 "precision": (["fp32", "fp16", "bf16"], {"default": "fp16"}),

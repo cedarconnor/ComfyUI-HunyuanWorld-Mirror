@@ -283,28 +283,64 @@ def _load_safetensors_model(model_path: str, device: str, precision: str) -> Any
             """Simple wrapper for loaded safetensors weights."""
             def __init__(self, state_dict, device, precision):
                 self.state_dict = state_dict
-                self.device = device
-                self.precision = precision
+                self._device = torch.device(device)
+                self._precision = precision
+
+                # Create a dummy parameter to satisfy parameters() calls
+                if precision == "fp16":
+                    dtype = torch.float16
+                elif precision == "bf16":
+                    dtype = torch.bfloat16
+                else:
+                    dtype = torch.float32
+
+                self._dummy_param = torch.zeros(1, dtype=dtype, device=self._device)
+
+            @property
+            def device(self):
+                return self._device
+
+            @device.setter
+            def device(self, value):
+                self._device = torch.device(value) if isinstance(value, str) else value
+
+            def parameters(self):
+                """Return iterator of dummy parameter for compatibility."""
+                return iter([self._dummy_param])
 
             def eval(self):
                 return self
 
             def to(self, device):
-                self.device = device
+                self._device = torch.device(device) if isinstance(device, str) else device
+                self._dummy_param = self._dummy_param.to(device)
                 return self
 
             def half(self):
-                self.precision = "fp16"
+                self._precision = "fp16"
+                self._dummy_param = self._dummy_param.half()
                 return self
 
             def bfloat16(self):
-                self.precision = "bf16"
+                self._precision = "bf16"
+                self._dummy_param = self._dummy_param.bfloat16()
                 return self
 
             def __call__(self, *args, **kwargs):
                 raise NotImplementedError(
-                    "Model weights loaded but WorldMirror class not available.\n"
-                    "Please install: https://github.com/Tencent-Hunyuan/HunyuanWorld-Mirror"
+                    "\n" + "="*70 + "\n"
+                    "ERROR: HunyuanWorld-Mirror model architecture not found!\n"
+                    "="*70 + "\n\n"
+                    "The .safetensors file contains only model weights, not the code.\n"
+                    "You need to install the HunyuanWorld-Mirror repository:\n\n"
+                    "1. Clone the repository:\n"
+                    "   git clone https://github.com/Tencent-Hunyuan/HunyuanWorld-Mirror\n\n"
+                    "2. Install it:\n"
+                    "   cd HunyuanWorld-Mirror\n"
+                    "   pip install -e .\n\n"
+                    "3. Restart ComfyUI\n\n"
+                    "This will provide the WorldMirror model class needed to run inference.\n"
+                    "="*70 + "\n"
                 )
 
         model = SafetensorsModelWrapper(state_dict, device, precision)

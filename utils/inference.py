@@ -5,9 +5,17 @@ Provides efficient model management and inference wrappers for HunyuanWorld-Mirr
 """
 
 import os
+import sys
 import torch
 from pathlib import Path
 from typing import Dict, Optional, Any, Tuple
+
+# Ensure the custom node directory is in Python path for model imports
+_current_file = Path(__file__).resolve()
+_custom_node_dir = _current_file.parent.parent  # Go up from utils/ to custom node root
+if str(_custom_node_dir) not in sys.path:
+    sys.path.insert(0, str(_custom_node_dir))
+
 from .memory import MemoryManager
 
 

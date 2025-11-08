@@ -9,12 +9,13 @@ import numpy as np
 from typing import Tuple, Optional
 
 
-def comfy_to_hwm(images: torch.Tensor) -> torch.Tensor:
+def comfy_to_hwm(images: torch.Tensor, patch_size: int = 14) -> torch.Tensor:
     """
     Convert ComfyUI image format to HunyuanWorld-Mirror format.
 
     Args:
         images: ComfyUI format tensor [B, H, W, C] in range [0, 1]
+        patch_size: Model patch size (default 14). Images will be resized to multiples of this.
 
     Returns:
         HWM format tensor [1, N, 3, H, W] in range [0, 1]
@@ -25,6 +26,8 @@ def comfy_to_hwm(images: torch.Tensor) -> torch.Tensor:
         >>> hwm_images.shape
         torch.Size([1, 4, 3, 512, 512])
     """
+    import torch.nn.functional as F
+
     if not isinstance(images, torch.Tensor):
         raise TypeError(f"Expected torch.Tensor, got {type(images)}")
 
@@ -35,6 +38,19 @@ def comfy_to_hwm(images: torch.Tensor) -> torch.Tensor:
 
     if C != 3:
         raise ValueError(f"Expected 3 channels (RGB), got {C} channels")
+
+    # Calculate target dimensions (nearest multiples of patch_size)
+    target_h = round(H / patch_size) * patch_size
+    target_w = round(W / patch_size) * patch_size
+
+    # Resize if needed
+    if H != target_h or W != target_w:
+        print(f"[INFO] Resizing images from {H}x{W} to {target_h}x{target_w} (multiple of {patch_size})")
+        # Permute to [B, C, H, W] for resize
+        images_chw = images.permute(0, 3, 1, 2)
+        images_resized = F.interpolate(images_chw, size=(target_h, target_w), mode='bilinear', align_corners=False)
+        # Permute back to [B, H, W, C]
+        images = images_resized.permute(0, 2, 3, 1)
 
     # [B, H, W, C] -> [B, C, H, W] -> [1, B, C, H, W]
     hwm_images = images.permute(0, 3, 1, 2).unsqueeze(0)

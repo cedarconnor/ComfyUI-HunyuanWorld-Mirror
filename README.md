@@ -1,3 +1,5 @@
+NOT WORKING YET!!!!!!!!!!!!!!!!!
+
 # HunyuanWorld-Mirror ComfyUI Node Pack
 
 Transform 2D images into 3D worlds using Tencent's HunyuanWorld-Mirror model directly in ComfyUI.

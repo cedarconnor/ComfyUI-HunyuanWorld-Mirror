@@ -12,9 +12,9 @@ import torch.nn as nn
 from torch.utils.checkpoint import checkpoint
 from torch.nn.init import trunc_normal_
 from . import Mlp, PatchEmbed, SwiGLUFFNFused, MemEffAttention, NestedTensorBlock as Block
-from training.utils.logger import RankedLogger
 
-log = RankedLogger(__name__, rank_zero_only=True)
+# Use standard Python logging instead of training-specific logger
+log = logging.getLogger(__name__)
 
 
 def named_apply(fn: Callable, module: nn.Module, name="", depth_first=True, include_root=False) -> nn.Module:

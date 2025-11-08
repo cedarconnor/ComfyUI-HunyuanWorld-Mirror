@@ -5,9 +5,22 @@ Provides efficient model management and inference wrappers for HunyuanWorld-Mirr
 """
 
 import os
+import sys
 import torch
 from pathlib import Path
 from typing import Dict, Optional, Any, Tuple
+
+# Ensure the custom node directory is FIRST in Python path for model imports
+# This is critical because other custom nodes pollute sys.path
+_current_file = Path(__file__).resolve()
+_custom_node_dir = _current_file.parent.parent  # Go up from utils/ to custom node root
+_custom_node_str = str(_custom_node_dir)
+
+# Remove any existing instance and insert at position 0
+while _custom_node_str in sys.path:
+    sys.path.remove(_custom_node_str)
+sys.path.insert(0, _custom_node_str)
+
 from .memory import MemoryManager
 
 
@@ -127,7 +140,15 @@ class InferenceWrapper:
 
         # Run inference
         try:
-            outputs = self.model(images, condition=condition, **kwargs)
+            # Prepare views dict as expected by WorldMirror
+            views = {'img': images}
+
+            # Convert condition to cond_flags format
+            # condition is [pose, depth, intrinsic], default to [0, 0, 0]
+            cond_flags = condition if condition is not None else [0, 0, 0]
+
+            # Call model with correct signature
+            outputs = self.model(views, cond_flags=cond_flags, is_inference=True)
         except Exception as e:
             print(f"Inference error: {e}")
             raise
@@ -268,19 +289,77 @@ def _load_safetensors_model(model_path: str, device: str, precision: str) -> Any
 
     # Try to import model class
     try:
-        from src.models.models.worldmirror import WorldMirror
+        # Use a context manager to temporarily ensure our directory is first in sys.path
+        # This is cleaner than fighting with sys.path globally
+        import contextlib
+
+        @contextlib.contextmanager
+        def _ensure_path_priority():
+            """Temporarily ensure custom node dir is first in sys.path and clear import cache."""
+            _node_str = str(_custom_node_dir)
+
+            # Save original sys.path
+            original_path = sys.path.copy()
+
+            # Clear any cached failed imports of 'src' modules
+            # Python caches failed imports, so we need to remove them
+            modules_to_remove = [key for key in sys.modules.keys() if key.startswith('src.')]
+            for key in modules_to_remove:
+                del sys.modules[key]
+
+            # Also remove the top-level 'src' if it exists
+            if 'src' in sys.modules:
+                del sys.modules['src']
+
+            # Remove any existing instances of our path
+            while _node_str in sys.path:
+                sys.path.remove(_node_str)
+
+            # Insert at position 0
+            sys.path.insert(0, _node_str)
+
+            print(f"[DEBUG] sys.path[0] = {sys.path[0]}")
+            print(f"[DEBUG] Cleared {len(modules_to_remove)} cached 'src.*' modules")
+
+            try:
+                yield
+            finally:
+                # Restore original sys.path
+                sys.path[:] = original_path
+
+        print(f"\n[DEBUG] Loading WorldMirror with path priority...")
+        print(f"  Custom node dir: {_custom_node_dir}")
+        print(f"  src dir exists: {(_custom_node_dir / 'src').exists()}")
+
+        # Import with our directory guaranteed to be first
+        with _ensure_path_priority():
+            from src.models.models.worldmirror import WorldMirror
+
+        print(f"[DEBUG] Successfully imported WorldMirror class!")
 
         # Create model instance and load weights
         model = WorldMirror()
         model.load_state_dict(state_dict)
 
-    except ImportError:
+        print(f"✓ Successfully loaded WorldMirror model from {os.path.basename(model_path)}")
+
+    except Exception as e:
         # Fallback: Create a simple wrapper that holds the state dict
-        print("Warning: WorldMirror class not found, loading weights only")
-        print("For full functionality, install: https://github.com/Tencent-Hunyuan/HunyuanWorld-Mirror")
+        print(f"\n{'='*70}")
+        print(f"ERROR: Failed to load WorldMirror model class")
+        print(f"{'='*70}")
+        print(f"Error type: {type(e).__name__}")
+        print(f"Error message: {e}")
+        print(f"\nFull traceback:")
+        import traceback
+        traceback.print_exc()
+        print(f"{'='*70}\n")
+        print("Creating fallback wrapper (inference will fail)...")
 
         class SafetensorsModelWrapper:
             """Simple wrapper for loaded safetensors weights."""
+            _error_shown = False  # Class variable to track if error was already shown
+
             def __init__(self, state_dict, device, precision):
                 self.state_dict = state_dict
                 self._device = torch.device(device)
@@ -327,21 +406,26 @@ def _load_safetensors_model(model_path: str, device: str, precision: str) -> Any
                 return self
 
             def __call__(self, *args, **kwargs):
-                raise NotImplementedError(
-                    "\n" + "="*70 + "\n"
-                    "ERROR: HunyuanWorld-Mirror model architecture not found!\n"
-                    "="*70 + "\n\n"
-                    "The .safetensors file contains only model weights, not the code.\n"
-                    "You need to install the HunyuanWorld-Mirror repository:\n\n"
-                    "1. Clone the repository:\n"
-                    "   git clone https://github.com/Tencent-Hunyuan/HunyuanWorld-Mirror\n\n"
-                    "2. Install it:\n"
-                    "   cd HunyuanWorld-Mirror\n"
-                    "   pip install -e .\n\n"
-                    "3. Restart ComfyUI\n\n"
-                    "This will provide the WorldMirror model class needed to run inference.\n"
-                    "="*70 + "\n"
-                )
+                # Only show the detailed error message once
+                if not SafetensorsModelWrapper._error_shown:
+                    SafetensorsModelWrapper._error_shown = True
+                    error_msg = (
+                        "\n" + "="*70 + "\n"
+                        "ERROR: HunyuanWorld-Mirror model architecture not found!\n"
+                        "="*70 + "\n\n"
+                        "The .safetensors file contains only model weights, not the code.\n"
+                        "SOLUTION: Enable 'force_reload' checkbox in the LoadHunyuanWorldMirrorModel node.\n\n"
+                        "If that doesn't work:\n"
+                        "1. Close ComfyUI completely\n"
+                        "2. Delete the __pycache__ folders in the custom node directory\n"
+                        "3. Restart ComfyUI\n"
+                        "4. Enable 'force_reload' and load the model again\n"
+                        + "="*70 + "\n"
+                    )
+                    print(error_msg)
+
+                # Raise a silent error (message already printed above)
+                raise NotImplementedError("Model architecture not available - see error above")
 
         model = SafetensorsModelWrapper(state_dict, device, precision)
 

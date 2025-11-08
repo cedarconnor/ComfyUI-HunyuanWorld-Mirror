@@ -238,6 +238,45 @@ class ExportUtils:
             )
 
         Path(filepath).parent.mkdir(parents=True, exist_ok=True)
+​
+ |  | 
+242
+ 
+244
+ 
+        # Check if gaussians data is available
+245
+ 
+        if means is None:
+246
+ 
+            raise ValueError("Gaussian means are None - model may not have 3DGS enabled or single image input doesn't generate gaussians")
+247
+ 
+​
+248
+ 
+        num_gaussians = len(means)
+249
+ 
+​
+250
+ 
+251
+        # Ensure correct shapes
+252
+        means = means.reshape(-1, 3).astype(np.float32)
+253
+        scales = scales.reshape(-1, 3).astype(np.float32)
+254
+        quats = quats.reshape(-1, 4).astype(np.float32)
+255
+        colors = colors.reshape(-1, 3).astype(np.float32)
+        # Check if gaussians data is available
+        if means is None:
+            raise ValueError("Gaussian means are None - model may not have 3DGS enabled or single image input doesn't generate gaussians")
+
+        num_gaussians = len(means)
 
         # Ensure correct shapes
         means = means.reshape(-1, 3).astype(np.float32)
@@ -412,16 +451,20 @@ class ExportUtils:
             camera = {
                 'frame_id': i,
                 'pose': poses[i].tolist(),
-                'intrinsics': intrinsics[i].tolist(),
-                'focal_length': [
+            }
+
+            # Only add intrinsics if available
+            if intrinsics is not None:
+                camera['intrinsics'] = intrinsics[i].tolist()
+                camera['focal_length'] = [
                     float(intrinsics[i, 0, 0]),
                     float(intrinsics[i, 1, 1])
-                ],
-                'principal_point': [
+                ]
+                camera['principal_point'] = [
                     float(intrinsics[i, 0, 2]),
                     float(intrinsics[i, 1, 2])
-                ],
-            }
+                ]
+
             cameras.append(camera)
 
         data = {

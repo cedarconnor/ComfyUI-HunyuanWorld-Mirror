@@ -201,6 +201,10 @@ class LoadHunyuanWorldMirrorModel:
                     "default": "fp16",
                     "tooltip": "Numeric precision for model weights. fp16 (half precision) uses less memory and is faster, fp32 (full precision) is more accurate, bf16 (bfloat16) balances both on supported GPUs."
                 }),
+                "force_reload": ("BOOLEAN", {
+                    "default": False,
+                    "tooltip": "Force reload the model from disk, bypassing cache. Use this if you updated the model files or if the model isn't working correctly."
+                }),
             },
             "optional": {
                 "cache_dir": ("STRING", {
@@ -221,6 +225,7 @@ class LoadHunyuanWorldMirrorModel:
         model_name: str,
         device: str,
         precision: str,
+        force_reload: bool,
         cache_dir: str = ""
     ) -> Tuple[Any]:
         """Load and cache the model."""
@@ -230,14 +235,17 @@ class LoadHunyuanWorldMirrorModel:
         print("=" * 60)
 
         try:
-            # Load model (with caching)
+            # Load model (with optional cache bypass)
             model, cache_key = load_model(
                 model_name=model_name,
                 device=device,
                 precision=precision,
                 cache_dir=cache_dir if cache_dir else None,
-                use_cache=True
+                use_cache=not force_reload  # Bypass cache if force_reload is True
             )
+
+            if force_reload:
+                print("* Model reloaded from disk (cache bypassed)")
 
             print(f"Model ready: {cache_key}")
             print("=" * 60)

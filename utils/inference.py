@@ -274,10 +274,20 @@ def _load_safetensors_model(model_path: str, device: str, precision: str) -> Any
         model = WorldMirror()
         model.load_state_dict(state_dict)
 
-    except ImportError:
+        print(f"✓ Successfully loaded WorldMirror model from {os.path.basename(model_path)}")
+
+    except Exception as e:
         # Fallback: Create a simple wrapper that holds the state dict
-        print("Warning: WorldMirror class not found, loading weights only")
-        print("For full functionality, install: https://github.com/Tencent-Hunyuan/HunyuanWorld-Mirror")
+        print(f"\n{'='*70}")
+        print(f"ERROR: Failed to load WorldMirror model class")
+        print(f"{'='*70}")
+        print(f"Error type: {type(e).__name__}")
+        print(f"Error message: {e}")
+        print(f"\nFull traceback:")
+        import traceback
+        traceback.print_exc()
+        print(f"{'='*70}\n")
+        print("Creating fallback wrapper (inference will fail)...")
 
         class SafetensorsModelWrapper:
             """Simple wrapper for loaded safetensors weights."""

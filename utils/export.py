@@ -10,7 +10,15 @@ import json
 import torch
 from pathlib import Path
 from typing import Optional, Dict, Any, Union
-from plyfile import PlyData, PlyElement
+
+# Optional imports - gracefully handle missing dependencies
+try:
+    from plyfile import PlyData, PlyElement
+    PLYFILE_AVAILABLE = True
+except ImportError:
+    PLYFILE_AVAILABLE = False
+    print("Warning: plyfile not installed. PLY export will not be available.")
+    print("Install with: pip install plyfile")
 
 
 class ExportUtils:
@@ -41,6 +49,12 @@ class ExportUtils:
         Returns:
             filepath: Path to saved file
         """
+        if not PLYFILE_AVAILABLE:
+            raise ImportError(
+                "plyfile is required for PLY export. "
+                "Install with: pip install plyfile"
+            )
+
         # Ensure output directory exists
         Path(filepath).parent.mkdir(parents=True, exist_ok=True)
 
@@ -190,6 +204,12 @@ class ExportUtils:
         Returns:
             filepath: Path to saved file
         """
+        if not PLYFILE_AVAILABLE:
+            raise ImportError(
+                "plyfile is required for 3DGS PLY export. "
+                "Install with: pip install plyfile"
+            )
+
         Path(filepath).parent.mkdir(parents=True, exist_ok=True)
 
         num_gaussians = len(means)

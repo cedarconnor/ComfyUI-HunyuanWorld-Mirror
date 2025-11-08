@@ -299,6 +299,8 @@ def _load_safetensors_model(model_path: str, device: str, precision: str) -> Any
 
         class SafetensorsModelWrapper:
             """Simple wrapper for loaded safetensors weights."""
+            _error_shown = False  # Class variable to track if error was already shown
+
             def __init__(self, state_dict, device, precision):
                 self.state_dict = state_dict
                 self._device = torch.device(device)
@@ -345,18 +347,24 @@ def _load_safetensors_model(model_path: str, device: str, precision: str) -> Any
                 return self
 
             def __call__(self, *args, **kwargs):
+                # Only show the detailed error message once
+                if not SafetensorsModelWrapper._error_shown:
+                    SafetensorsModelWrapper._error_shown = True
+                    error_msg = (
+                        "\n" + "="*70 + "\n"
+                        "ERROR: HunyuanWorld-Mirror model architecture not found!\n"
+                        "="*70 + "\n\n"
+                        "The .safetensors file contains only model weights, not the code.\n"
+                        "SOLUTION: Enable 'force_reload' checkbox in the LoadHunyuanWorldMirrorModel node.\n\n"
+                        "If that doesn't work:\n"
+                        "1. Close ComfyUI completely\n"
+                        "2. Delete the __pycache__ folders in the custom node directory\n"
+                        "3. Restart ComfyUI\n"
+                        "4. Enable 'force_reload' and load the model again\n\n"
+                    )
+                    print(error_msg)
+
                 raise NotImplementedError(
-                    "\n" + "="*70 + "\n"
-                    "ERROR: HunyuanWorld-Mirror model architecture not found!\n"
-                    "="*70 + "\n\n"
-                    "The .safetensors file contains only model weights, not the code.\n"
-                    "You need to install the HunyuanWorld-Mirror repository:\n\n"
-                    "1. Clone the repository:\n"
-                    "   git clone https://github.com/Tencent-Hunyuan/HunyuanWorld-Mirror\n\n"
-                    "2. Install it:\n"
-                    "   cd HunyuanWorld-Mirror\n"
-                    "   pip install -e .\n\n"
-                    "3. Restart ComfyUI\n\n"
                     "This will provide the WorldMirror model class needed to run inference.\n"
                     "="*70 + "\n"
                 )

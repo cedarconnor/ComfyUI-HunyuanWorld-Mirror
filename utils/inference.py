@@ -281,10 +281,20 @@ def _load_safetensors_model(model_path: str, device: str, precision: str) -> Any
 
     # Try to import model class
     try:
-        # Debug: Print Python path info
+        # CRITICAL: Ensure our directory is FIRST in sys.path
+        # Other custom nodes pollute sys.path, so we must fix it right before import
         import sys
-        print(f"\n[DEBUG] Python path check:")
-        print(f"  Custom node dir in sys.path: {str(_custom_node_dir) in sys.path}")
+        _node_str = str(_custom_node_dir)
+
+        # Remove any existing instances
+        while _node_str in sys.path:
+            sys.path.remove(_node_str)
+
+        # Insert at position 0
+        sys.path.insert(0, _node_str)
+
+        # Debug: Print Python path info
+        print(f"\n[DEBUG] Python path check (after fix):")
         print(f"  Custom node dir: {_custom_node_dir}")
         print(f"  src dir exists: {(_custom_node_dir / 'src').exists()}")
         print(f"  src/__init__.py exists: {(_custom_node_dir / 'src' / '__init__.py').exists()}")

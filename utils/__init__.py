@@ -15,7 +15,7 @@ from .memory import MemoryManager
 
 from .inference import ModelCache, InferenceWrapper
 
-from .export import ExportUtils
+from .export import ExportUtils, tensor_to_numpy
 
 __all__ = [
     'comfy_to_hwm',
@@ -28,4 +28,5 @@ __all__ = [
     'ModelCache',
     'InferenceWrapper',
     'ExportUtils',
+    'tensor_to_numpy',
 ]

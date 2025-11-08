@@ -42,15 +42,22 @@ class LoadHunyuanWorldMirrorModel:
                 "model_name": ("STRING", {
                     "default": "HunyuanWorld-Mirror",
                     "multiline": False,
-                    "tooltip": "Model name, filename, or path. Checks ComfyUI/models/HunyuanWorld-Mirror/ first."
+                    "tooltip": "Model name, filename, or path. Checks ComfyUI/models/HunyuanWorld-Mirror/ first. Examples: 'HunyuanWorld-Mirror', 'model.safetensors', or full path."
                 }),
-                "device": (["auto", "cuda", "cpu"], {"default": "auto"}),
-                "precision": (["fp32", "fp16", "bf16"], {"default": "fp16"}),
+                "device": (["auto", "cuda", "cpu"], {
+                    "default": "auto",
+                    "tooltip": "Which device to run the model on. 'auto' selects CUDA if available, otherwise CPU. Use 'cuda' for GPU acceleration (recommended) or 'cpu' for compatibility."
+                }),
+                "precision": (["fp32", "fp16", "bf16"], {
+                    "default": "fp16",
+                    "tooltip": "Numeric precision for model weights. fp16 (half precision) uses less memory and is faster, fp32 (full precision) is more accurate, bf16 (bfloat16) balances both on supported GPUs."
+                }),
             },
             "optional": {
                 "cache_dir": ("STRING", {
                     "default": "",
-                    "multiline": False
+                    "multiline": False,
+                    "tooltip": "Custom directory for downloading and caching model files from HuggingFace. Leave empty to use default cache location."
                 }),
             }
         }
@@ -108,12 +115,17 @@ class HWMInference:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "model": ("HWMIRROR_MODEL",),
-                "images": ("IMAGE",),  # ComfyUI IMAGE type
+                "model": ("HWMIRROR_MODEL", {
+                    "tooltip": "The loaded HunyuanWorld-Mirror model from the 'Load HunyuanWorld-Mirror Model' node."
+                }),
+                "images": ("IMAGE", {
+                    "tooltip": "Sequence of input images (4-64 frames). Use LoadImage + ImageBatch to create a sequence. More frames give better 3D reconstruction but use more memory."
+                }),
                 "seed": ("INT", {
                     "default": -1,
                     "min": -1,
-                    "max": 2**32 - 1
+                    "max": 2**32 - 1,
+                    "tooltip": "Random seed for reproducible results. Set to -1 for random seed each time, or use a specific number (e.g., 42) to get the same results every run."
                 }),
             },
         }
@@ -225,11 +237,17 @@ class VisualizeDepth:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "depth": ("DEPTH",),
-                "colormap": (["viridis", "plasma", "turbo", "magma", "inferno", "gray"], {
-                    "default": "turbo"
+                "depth": ("DEPTH", {
+                    "tooltip": "Depth map output from the HWM Inference node. Contains distance information for each pixel in the image."
                 }),
-                "normalize": ("BOOLEAN", {"default": True}),
+                "colormap": (["viridis", "plasma", "turbo", "magma", "inferno", "gray"], {
+                    "default": "turbo",
+                    "tooltip": "Color scheme for visualizing depth. 'turbo' is rainbow-like (blue=close, red=far), 'viridis' is blue-to-yellow, 'gray' is grayscale. Choose based on preference."
+                }),
+                "normalize": ("BOOLEAN", {
+                    "default": True,
+                    "tooltip": "Whether to automatically adjust depth values to use the full color range. Enable (True) for better visualization, disable (False) to use raw depth values."
+                }),
             },
         }
 
@@ -304,7 +322,9 @@ class VisualizeNormals:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "normals": ("NORMALS",),
+                "normals": ("NORMALS", {
+                    "tooltip": "Surface normal vectors from the HWM Inference node. Shows which direction each surface is facing in 3D space. Converted to RGB where X=Red, Y=Green, Z=Blue."
+                }),
             },
         }
 
@@ -339,16 +359,26 @@ class SavePointCloud:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "points3d": ("POINTS3D",),
+                "points3d": ("POINTS3D", {
+                    "tooltip": "3D point coordinates from the HWM Inference node. Each point represents a location in 3D space (X, Y, Z coordinates)."
+                }),
                 "filepath": ("STRING", {
                     "default": "./output/pointcloud.ply",
-                    "multiline": False
+                    "multiline": False,
+                    "tooltip": "Where to save the point cloud file. Can be relative (./output/file.ply) or absolute path (C:/Users/Name/Documents/file.ply). File extension will auto-adjust to match format."
                 }),
-                "format": (["ply", "obj", "xyz"], {"default": "ply"}),
+                "format": (["ply", "obj", "xyz"], {
+                    "default": "ply",
+                    "tooltip": "File format for the point cloud. PLY is most common and supports colors/normals. OBJ works with most 3D software. XYZ is simple text format (just coordinates)."
+                }),
             },
             "optional": {
-                "colors": ("IMAGE",),  # Optional point colors from source images
-                "normals": ("NORMALS",),  # Optional surface normals
+                "colors": ("IMAGE", {
+                    "tooltip": "Optional: RGB colors for each point, typically from the source images. Makes the point cloud look more realistic when viewed in 3D software."
+                }),
+                "normals": ("NORMALS", {
+                    "tooltip": "Optional: Surface normal directions for each point. Helps with lighting and rendering in 3D viewers. Only supported in PLY format."
+                }),
             },
         }
 
@@ -410,12 +440,18 @@ class Save3DGaussians:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "gaussians": ("GAUSSIANS",),
+                "gaussians": ("GAUSSIANS", {
+                    "tooltip": "3D Gaussian Splatting parameters from the HWM Inference node. Contains position, scale, rotation, color, and opacity for each Gaussian primitive."
+                }),
                 "filepath": ("STRING", {
                     "default": "./output/gaussians.ply",
-                    "multiline": False
+                    "multiline": False,
+                    "tooltip": "Where to save the Gaussian Splatting file. Use .ply extension. This file can be loaded in 3DGS viewers for real-time novel view synthesis."
                 }),
-                "include_sh": ("BOOLEAN", {"default": False}),
+                "include_sh": ("BOOLEAN", {
+                    "default": False,
+                    "tooltip": "Whether to include Spherical Harmonics coefficients for view-dependent appearance. Enable for more realistic lighting effects, disable for smaller files and faster loading."
+                }),
             },
         }
 
@@ -470,12 +506,18 @@ class SaveDepthMap:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "depth": ("DEPTH",),
+                "depth": ("DEPTH", {
+                    "tooltip": "Depth map from the HWM Inference node. Raw depth values will be saved with full precision."
+                }),
                 "filepath": ("STRING", {
                     "default": "./output/depth.npy",
-                    "multiline": False
+                    "multiline": False,
+                    "tooltip": "Where to save the depth data. File extension will auto-adjust to match the selected format (e.g., depth.npy, depth.exr, depth.png)."
                 }),
-                "format": (["npy", "exr", "png16"], {"default": "npy"}),
+                "format": (["npy", "exr", "png16"], {
+                    "default": "npy",
+                    "tooltip": "File format for depth data. NPY is NumPy binary (full precision, Python-friendly). EXR is OpenEXR (high dynamic range, used in VFX). PNG16 is 16-bit PNG (good compatibility)."
+                }),
             },
         }
 
@@ -527,13 +569,21 @@ class SaveCameraParams:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "camera_poses": ("POSES",),
-                "camera_intrinsics": ("INTRINSICS",),
+                "camera_poses": ("POSES", {
+                    "tooltip": "Camera pose matrices from the HWM Inference node. Each pose is a 4x4 matrix describing camera position and orientation in 3D space for each frame."
+                }),
+                "camera_intrinsics": ("INTRINSICS", {
+                    "tooltip": "Camera intrinsic parameters from the HWM Inference node. 3x3 matrix containing focal length, principal point, and other internal camera properties."
+                }),
                 "filepath": ("STRING", {
                     "default": "./output/cameras.json",
-                    "multiline": False
+                    "multiline": False,
+                    "tooltip": "Where to save camera parameters. JSON format saves in one readable file. NPY format saves as two files: filepath_poses.npy and filepath_intrinsics.npy."
                 }),
-                "format": (["json", "npy"], {"default": "json"}),
+                "format": (["json", "npy"], {
+                    "default": "json",
+                    "tooltip": "File format for camera data. JSON is human-readable and good for debugging. NPY is binary format for fast loading in Python/NumPy scripts."
+                }),
             },
         }
 

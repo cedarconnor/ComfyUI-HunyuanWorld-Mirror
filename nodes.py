@@ -374,12 +374,17 @@ class HWMInference:
                 with torch.no_grad():
                     outputs = wrapper.infer(hwm_images, condition=None)
 
+                # Debug: Log available output keys
+                if batch_idx == 0:
+                    output_keys = list(outputs.keys())
+                    print(f"  Model outputs: {', '.join(output_keys)}")
+
                 # Extract and collect outputs
                 depth = outputs.get('depth', outputs.get('pred_depth', None))
                 normals = outputs.get('normals', outputs.get('pred_normals', None))
                 pts3d = outputs.get('pts3d', outputs.get('pred_pts3d', None))
                 poses = outputs.get('camera_poses', outputs.get('pred_poses', None))
-                intrinsics = outputs.get('camera_intrinsics', outputs.get('pred_intrinsics', None))
+                intrinsics = outputs.get('camera_intrinsics', outputs.get('camera_intrs', None))
 
                 if depth is not None:
                     all_depth.append(depth)
@@ -392,17 +397,25 @@ class HWMInference:
                 if intrinsics is not None:
                     all_intrinsics.append(intrinsics)
 
-                # Collect Gaussian parameters
-                if outputs.get('gaussian_means', None) is not None:
-                    all_gaussian_means.append(outputs['gaussian_means'])
-                if outputs.get('gaussian_scales', None) is not None:
-                    all_gaussian_scales.append(outputs['gaussian_scales'])
-                if outputs.get('gaussian_quats', None) is not None:
-                    all_gaussian_quats.append(outputs['gaussian_quats'])
-                if outputs.get('gaussian_colors', None) is not None:
-                    all_gaussian_colors.append(outputs['gaussian_colors'])
-                if outputs.get('gaussian_opacities', None) is not None:
-                    all_gaussian_opacities.append(outputs['gaussian_opacities'])
+                # Extract Gaussian parameters from splats dictionary
+                splats = outputs.get('splats', None)
+                if splats is not None and isinstance(splats, dict):
+                    # Extract individual Gaussian parameters
+                    # Note: Don't remove batch dim [0] here since we may have batches
+                    if 'means' in splats and splats['means'] is not None:
+                        all_gaussian_means.append(splats['means'])
+                    if 'scales' in splats and splats['scales'] is not None:
+                        all_gaussian_scales.append(splats['scales'])
+                    if 'quats' in splats and splats['quats'] is not None:
+                        all_gaussian_quats.append(splats['quats'])
+                    if 'opacities' in splats and splats['opacities'] is not None:
+                        all_gaussian_opacities.append(splats['opacities'])
+
+                    # Extract colors - prefer 'sh' (spherical harmonics) over 'colors'
+                    if 'sh' in splats and splats['sh'] is not None:
+                        all_gaussian_colors.append(splats['sh'])
+                    elif 'colors' in splats and splats['colors'] is not None:
+                        all_gaussian_colors.append(splats['colors'])
 
                 # Clear batch memory
                 if num_batches > 1:
@@ -440,7 +453,14 @@ class HWMInference:
                 'quats': concat_tensors(all_gaussian_quats),
                 'colors': concat_tensors(all_gaussian_colors),
                 'opacities': concat_tensors(all_gaussian_opacities),
+                'sh': concat_tensors(all_gaussian_colors),  # sh and colors are the same
             }
+
+            # Log Gaussian availability
+            if gaussian_params['means'] is not None:
+                print(f"  Gaussians: Generated successfully")
+            else:
+                print(f"  Gaussians: Not available (model may need enable_gs=True or multiple views)")
 
             print("✓ Inference complete")
             print(f"  Depth: {depth.shape if depth is not None else 'N/A'}")

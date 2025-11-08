@@ -25,6 +25,155 @@ from .utils.inference import load_model
 
 
 # ============================================================================
+# Node 0: PreprocessImagesForHWM (NEW in Phase 2)
+# ============================================================================
+
+class PreprocessImagesForHWM:
+    """
+    Preprocess images for HunyuanWorld-Mirror model with professional crop/pad strategies.
+
+    Ensures images meet model requirements:
+    - Dimensions divisible by 14 (patch size)
+    - Consistent sizing across batch
+    - Proper aspect ratio handling
+    """
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "images": ("IMAGE", {
+                    "tooltip": "Input images to preprocess. Can be single or batch of images from LoadImage or other nodes."
+                }),
+                "strategy": (["crop", "pad"], {
+                    "default": "crop",
+                    "tooltip": "Preprocessing strategy. CROP: resize width to target, center-crop height if too tall. PAD: scale largest dimension to target, pad smaller dimension with white."
+                }),
+                "target_size": ("INT", {
+                    "default": 518,
+                    "min": 224,
+                    "max": 1024,
+                    "step": 14,
+                    "tooltip": "Target image size in pixels (must be divisible by 14). Default 518 is optimal for the model. Larger = more detail but slower inference."
+                }),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("preprocessed_images",)
+    FUNCTION = "preprocess"
+    CATEGORY = "HunyuanWorld-Mirror/preprocessing"
+
+    def preprocess(
+        self,
+        images: torch.Tensor,
+        strategy: str,
+        target_size: int
+    ) -> Tuple[torch.Tensor]:
+        """Preprocess images with crop or pad strategy."""
+
+        # ComfyUI images are [B, H, W, C] in range [0, 1]
+        batch_size, height, width, channels = images.shape
+
+        print(f"\n{'='*60}")
+        print(f"Preprocessing {batch_size} images")
+        print(f"Input size: {width}x{height}, Target: {target_size}x{target_size}")
+        print(f"Strategy: {strategy}")
+        print(f"{'='*60}")
+
+        # Ensure target_size is divisible by 14
+        target_size = (target_size // 14) * 14
+
+        processed_images = []
+
+        for i in range(batch_size):
+            # Get single image [H, W, C]
+            img = images[i]
+
+            # Convert to CHW format for processing
+            img_chw = img.permute(2, 0, 1)  # [C, H, W]
+
+            if strategy == "crop":
+                # Resize width to target, maintain aspect ratio for height
+                aspect_ratio = height / width
+                new_width = target_size
+                new_height = int(new_width * aspect_ratio)
+                # Round to nearest multiple of 14
+                new_height = (new_height // 14) * 14
+
+                # Resize
+                img_resized = torch.nn.functional.interpolate(
+                    img_chw.unsqueeze(0),
+                    size=(new_height, new_width),
+                    mode='bicubic',
+                    align_corners=False
+                ).squeeze(0)
+
+                # Center crop if height > target_size
+                if new_height > target_size:
+                    crop_start = (new_height - target_size) // 2
+                    img_final = img_resized[:, crop_start:crop_start + target_size, :]
+                else:
+                    # Pad if height < target_size
+                    pad_needed = target_size - new_height
+                    pad_top = pad_needed // 2
+                    pad_bottom = pad_needed - pad_top
+                    img_final = torch.nn.functional.pad(
+                        img_resized,
+                        (0, 0, pad_top, pad_bottom),
+                        mode='constant',
+                        value=1.0  # White padding
+                    )
+
+            else:  # strategy == "pad"
+                # Scale largest dimension to target, pad smaller
+                if width >= height:
+                    new_width = target_size
+                    new_height = int(height * (target_size / width))
+                    new_height = (new_height // 14) * 14
+                else:
+                    new_height = target_size
+                    new_width = int(width * (target_size / height))
+                    new_width = (new_width // 14) * 14
+
+                # Resize
+                img_resized = torch.nn.functional.interpolate(
+                    img_chw.unsqueeze(0),
+                    size=(new_height, new_width),
+                    mode='bicubic',
+                    align_corners=False
+                ).squeeze(0)
+
+                # Pad to square
+                pad_height = target_size - new_height
+                pad_width = target_size - new_width
+
+                pad_top = pad_height // 2
+                pad_bottom = pad_height - pad_top
+                pad_left = pad_width // 2
+                pad_right = pad_width - pad_left
+
+                img_final = torch.nn.functional.pad(
+                    img_resized,
+                    (pad_left, pad_right, pad_top, pad_bottom),
+                    mode='constant',
+                    value=1.0  # White padding
+                )
+
+            # Convert back to HWC format
+            img_final = img_final.permute(1, 2, 0)  # [H, W, C]
+            processed_images.append(img_final)
+
+        # Stack back to batch
+        output = torch.stack(processed_images, dim=0)
+
+        print(f"✓ Preprocessed to {output.shape[2]}x{output.shape[1]}")
+        print(f"{'='*60}\n")
+
+        return (output,)
+
+
+# ============================================================================
 # Node 1: LoadHunyuanWorldMirrorModel
 # ============================================================================
 
@@ -650,10 +799,153 @@ class SaveCameraParams:
 
 
 # ============================================================================
+# Node 9: SaveCOLMAPReconstruction
+# ============================================================================
+
+class SaveCOLMAPReconstruction:
+    """
+    Export COLMAP reconstruction for Structure-from-Motion pipelines.
+    Creates camera poses, intrinsics, and 3D point cloud in COLMAP format.
+    """
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "pts3d": ("PTS3D", {
+                    "tooltip": "3D points from HWM Inference. Dense point cloud will be converted to sparse COLMAP format."
+                }),
+                "camera_poses": ("POSES", {
+                    "tooltip": "Camera pose matrices (4x4) from HWM Inference. Describes camera position and orientation for each frame."
+                }),
+                "camera_intrinsics": ("INTRINSICS", {
+                    "tooltip": "Camera intrinsic matrices (3x3) from HWM Inference. Contains focal length and principal point."
+                }),
+                "output_dir": ("STRING", {
+                    "default": "./output/colmap",
+                    "multiline": False,
+                    "tooltip": "Directory to save COLMAP reconstruction. Will create cameras.bin, images.bin, and points3D.bin files."
+                }),
+                "camera_model": (["SIMPLE_PINHOLE", "PINHOLE"], {
+                    "default": "SIMPLE_PINHOLE",
+                    "tooltip": "COLMAP camera model. SIMPLE_PINHOLE: single focal length. PINHOLE: separate fx/fy focal lengths."
+                }),
+                "shared_camera": ("BOOLEAN", {
+                    "default": True,
+                    "tooltip": "Share camera parameters across all frames. True=assume same camera for all images. False=allow different cameras per frame."
+                }),
+                "subsample_factor": ("INT", {
+                    "default": 4,
+                    "min": 1,
+                    "max": 16,
+                    "step": 1,
+                    "tooltip": "Downsample dense points by this factor. 4=keep every 4th point. Higher values create smaller, faster COLMAP reconstructions."
+                }),
+            },
+            "optional": {
+                "pts3d_rgb": ("*", {
+                    "tooltip": "Optional: RGB colors for 3D points from HWM Inference. If not provided, points will be white."
+                }),
+            },
+        }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("output_path",)
+    FUNCTION = "save_colmap"
+    CATEGORY = "HunyuanWorld-Mirror/output"
+    OUTPUT_NODE = True
+
+    def save_colmap(
+        self,
+        pts3d: torch.Tensor,
+        camera_poses: torch.Tensor,
+        camera_intrinsics: torch.Tensor,
+        output_dir: str,
+        camera_model: str,
+        shared_camera: bool,
+        subsample_factor: int,
+        pts3d_rgb: Optional[torch.Tensor] = None
+    ) -> Tuple[str]:
+        """Export COLMAP reconstruction."""
+        import os
+        from src.utils.build_pycolmap_recon import build_pycolmap_reconstruction
+
+        # Convert to numpy
+        pts3d_np = tensor_to_numpy(pts3d)  # (B, H, W, 3)
+        poses_np = tensor_to_numpy(camera_poses)  # (B, 4, 4)
+        intrinsics_np = tensor_to_numpy(camera_intrinsics)  # (B, 3, 3)
+
+        B, H, W, _ = pts3d_np.shape
+
+        # Flatten dense points to sparse list
+        pts3d_flat = pts3d_np.reshape(-1, 3)  # (B*H*W, 3)
+
+        # Subsample points to reduce size
+        subsample_mask = np.arange(len(pts3d_flat)) % subsample_factor == 0
+        pts3d_sparse = pts3d_flat[subsample_mask]
+
+        # Generate pixel coordinates (x, y, frame_idx)
+        pixel_coords = []
+        for b in range(B):
+            for h in range(H):
+                for w in range(W):
+                    idx = b * H * W + h * W + w
+                    if subsample_mask[idx]:
+                        pixel_coords.append([w, h, b])  # x, y, frame_idx
+        pixel_coords = np.array(pixel_coords, dtype=np.float32)
+
+        # Handle colors
+        if pts3d_rgb is not None:
+            rgb_np = tensor_to_numpy(pts3d_rgb)  # (B, H, W, 3)
+            rgb_flat = rgb_np.reshape(-1, 3)
+            rgb_sparse = (rgb_flat[subsample_mask] * 255).astype(np.uint8)
+        else:
+            # Default to white
+            rgb_sparse = np.full((len(pts3d_sparse), 3), 255, dtype=np.uint8)
+
+        # Filter out invalid points (NaN, Inf)
+        valid_mask = np.isfinite(pts3d_sparse).all(axis=1)
+        pts3d_sparse = pts3d_sparse[valid_mask]
+        pixel_coords = pixel_coords[valid_mask]
+        rgb_sparse = rgb_sparse[valid_mask]
+
+        print(f"COLMAP Export: {len(pts3d_sparse)} points, {B} frames")
+
+        # Build COLMAP reconstruction
+        try:
+            reconstruction = build_pycolmap_reconstruction(
+                points=pts3d_sparse,
+                pixel_coords=pixel_coords,
+                point_colors=rgb_sparse,
+                poses=poses_np,
+                intrinsics=intrinsics_np,
+                image_size=(W, H),
+                shared_camera_model=shared_camera,
+                camera_model=camera_model
+            )
+
+            # Create output directory
+            os.makedirs(output_dir, exist_ok=True)
+
+            # Write COLMAP binary format
+            reconstruction.write(output_dir)
+
+            print(f"Saved COLMAP reconstruction to: {output_dir}")
+            return (output_dir,)
+
+        except Exception as e:
+            print(f"Error creating COLMAP reconstruction: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
+
+
+# ============================================================================
 # Node Mappings for ComfyUI Registration
 # ============================================================================
 
 NODE_CLASS_MAPPINGS = {
+    "PreprocessImagesForHWM": PreprocessImagesForHWM,
     "LoadHunyuanWorldMirrorModel": LoadHunyuanWorldMirrorModel,
     "HWMInference": HWMInference,
     "VisualizeDepth": VisualizeDepth,
@@ -662,9 +954,11 @@ NODE_CLASS_MAPPINGS = {
     "Save3DGaussians": Save3DGaussians,
     "SaveDepthMap": SaveDepthMap,
     "SaveCameraParams": SaveCameraParams,
+    "SaveCOLMAPReconstruction": SaveCOLMAPReconstruction,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
+    "PreprocessImagesForHWM": "Preprocess Images for HWM",
     "LoadHunyuanWorldMirrorModel": "Load HunyuanWorld-Mirror Model",
     "HWMInference": "HWM Inference",
     "VisualizeDepth": "Visualize Depth",
@@ -673,4 +967,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Save3DGaussians": "Save 3D Gaussians",
     "SaveDepthMap": "Save Depth Map",
     "SaveCameraParams": "Save Camera Parameters",
+    "SaveCOLMAPReconstruction": "Save COLMAP Reconstruction",
 }

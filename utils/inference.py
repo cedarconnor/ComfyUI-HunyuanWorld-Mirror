@@ -10,11 +10,16 @@ import torch
 from pathlib import Path
 from typing import Dict, Optional, Any, Tuple
 
-# Ensure the custom node directory is in Python path for model imports
+# Ensure the custom node directory is FIRST in Python path for model imports
+# This is critical because other custom nodes pollute sys.path
 _current_file = Path(__file__).resolve()
 _custom_node_dir = _current_file.parent.parent  # Go up from utils/ to custom node root
-if str(_custom_node_dir) not in sys.path:
-    sys.path.insert(0, str(_custom_node_dir))
+_custom_node_str = str(_custom_node_dir)
+
+# Remove any existing instance and insert at position 0
+while _custom_node_str in sys.path:
+    sys.path.remove(_custom_node_str)
+sys.path.insert(0, _custom_node_str)
 
 from .memory import MemoryManager
 

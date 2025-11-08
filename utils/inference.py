@@ -287,11 +287,21 @@ def _load_safetensors_model(model_path: str, device: str, precision: str) -> Any
 
         @contextlib.contextmanager
         def _ensure_path_priority():
-            """Temporarily ensure custom node dir is first in sys.path."""
+            """Temporarily ensure custom node dir is first in sys.path and clear import cache."""
             _node_str = str(_custom_node_dir)
 
             # Save original sys.path
             original_path = sys.path.copy()
+
+            # Clear any cached failed imports of 'src' modules
+            # Python caches failed imports, so we need to remove them
+            modules_to_remove = [key for key in sys.modules.keys() if key.startswith('src.')]
+            for key in modules_to_remove:
+                del sys.modules[key]
+
+            # Also remove the top-level 'src' if it exists
+            if 'src' in sys.modules:
+                del sys.modules['src']
 
             # Remove any existing instances of our path
             while _node_str in sys.path:
@@ -299,6 +309,9 @@ def _load_safetensors_model(model_path: str, device: str, precision: str) -> Any
 
             # Insert at position 0
             sys.path.insert(0, _node_str)
+
+            print(f"[DEBUG] sys.path[0] = {sys.path[0]}")
+            print(f"[DEBUG] Cleared {len(modules_to_remove)} cached 'src.*' modules")
 
             try:
                 yield

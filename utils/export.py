@@ -252,6 +252,22 @@ class ExportUtils:
         colors = colors.reshape(-1, 3).astype(np.float32)
         opacities = opacities.reshape(-1).astype(np.float32)  # Flatten to 1D for filtering
 
+        # Reshape sh if provided (before filtering)
+        if sh is not None:
+            # sh can be [1, N, SH_COEFFS, 3] or [N, SH_COEFFS, 3] or [N, SH_COEFFS*3]
+            # Flatten to [N, -1] to ensure first dimension matches means
+            original_shape = sh.shape
+            if len(original_shape) >= 2:
+                # If first dim is 1, squeeze it
+                if original_shape[0] == 1:
+                    sh = sh.squeeze(0)
+                # Reshape to [N, -1]
+                sh = sh.reshape(len(means), -1).astype(np.float32)
+            else:
+                # Already 1D or wrong shape, skip sh
+                print(f"  Warning: Unexpected sh shape {original_shape}, skipping spherical harmonics")
+                sh = None
+
         # Filter out Gaussians with large scales (outliers) - IMPROVEMENT FROM OFFICIAL REPO
         if filter_scale_percentile > 0 and filter_scale_percentile < 100:
             max_scales = np.max(scales, axis=1)
@@ -281,6 +297,19 @@ class ExportUtils:
             ('x', means[:, 0]),
             ('y', means[:, 1]),
             ('z', means[:, 2]),
+        ]
+
+        # Add standard PLY colors first (for compatibility with standard viewers)
+        # Convert from [0, 1] to [0, 255] for standard PLY format
+        colors_255 = (np.clip(colors, 0, 1) * 255).astype(np.uint8)
+        vertex_data.extend([
+            ('red', colors_255[:, 0]),
+            ('green', colors_255[:, 1]),
+            ('blue', colors_255[:, 2]),
+        ])
+
+        # Add 3DGS-specific attributes
+        vertex_data.extend([
             ('scale_0', scales[:, 0]),
             ('scale_1', scales[:, 1]),
             ('scale_2', scales[:, 2]),
@@ -289,16 +318,16 @@ class ExportUtils:
             ('rot_2', quats[:, 2]),  # y
             ('rot_3', quats[:, 3]),  # z
             ('opacity', opacities[:, 0]),
-        ]
+        ])
 
-        # Add colors or spherical harmonics
+        # Add colors or spherical harmonics in 3DGS format
         if sh is not None:
             # Flatten SH coefficients
             sh_flat = sh.reshape(num_gaussians, -1).astype(np.float32)
             for i in range(sh_flat.shape[1]):
                 vertex_data.append((f'f_dc_{i}', sh_flat[:, i]))
         else:
-            # Simple RGB colors
+            # Simple RGB colors in 3DGS format (normalized [0,1])
             vertex_data.extend([
                 ('f_dc_0', colors[:, 0]),
                 ('f_dc_1', colors[:, 1]),

@@ -1233,6 +1233,107 @@ class SaveCOLMAPReconstruction:
 
 
 # ============================================================================
+# Node 10: View3DInBrowser
+# ============================================================================
+
+class View3DInBrowser:
+    """
+    Launch an interactive 3D viewer in the browser for point clouds and Gaussian splats.
+
+    Opens a WebGL-based viewer using Three.js to visualize .ply and .splat files.
+    """
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "file_path": ("STRING", {
+                    "default": "",
+                    "multiline": False,
+                    "tooltip": "Path to the .ply or .splat file to visualize. Can be a point cloud or Gaussian splat file from SavePointCloud or Save3DGaussians nodes."
+                }),
+                "mode": (["auto", "pointcloud", "splat"], {
+                    "default": "auto",
+                    "tooltip": "Rendering mode. 'auto' detects from file content, 'pointcloud' renders as points, 'splat' renders as Gaussian splats with transparency."
+                }),
+                "auto_open": ("BOOLEAN", {
+                    "default": True,
+                    "tooltip": "Automatically open the viewer in your default web browser when the node executes."
+                }),
+                "port": ("INT", {
+                    "default": 8765,
+                    "min": 1024,
+                    "max": 65535,
+                    "tooltip": "Port number for the local web server. Default is 8765. Change if port is already in use."
+                }),
+            },
+        }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("viewer_url",)
+    FUNCTION = "view"
+    CATEGORY = "HunyuanWorld-Mirror/visualization"
+    OUTPUT_NODE = True
+
+    def view(
+        self,
+        file_path: str,
+        mode: str,
+        auto_open: bool,
+        port: int
+    ) -> Tuple[str]:
+        """Launch the 3D viewer in browser."""
+        from .viewer_server import open_viewer
+        import os
+
+        # Validate file path
+        if not file_path or not os.path.isfile(file_path):
+            print(f"⚠ Warning: File not found or invalid path: {file_path}")
+            print("  Skipping viewer launch.")
+            return ("",)
+
+        # Auto-detect mode from file extension if set to auto
+        if mode == "auto":
+            if file_path.lower().endswith('.splat'):
+                mode = "splat"
+            else:
+                # Default to pointcloud for .ply files
+                mode = "pointcloud"
+
+        print("\n" + "=" * 70)
+        print("Launching 3D Viewer")
+        print("=" * 70)
+
+        try:
+            # Open viewer
+            url = open_viewer(
+                file_path=file_path,
+                mode=mode,
+                port=port,
+                auto_open=auto_open
+            )
+
+            print(f"✓ 3D Viewer ready")
+            print(f"  File: {os.path.basename(file_path)}")
+            print(f"  Mode: {mode}")
+            print(f"  URL: {url}")
+
+            if not auto_open:
+                print(f"\n  ℹ Auto-open disabled. Open this URL in your browser:")
+                print(f"    {url}\n")
+
+            print("=" * 70 + "\n")
+
+            return (url,)
+
+        except Exception as e:
+            print(f"✗ Error launching viewer: {e}")
+            import traceback
+            traceback.print_exc()
+            return ("",)
+
+
+# ============================================================================
 # Node Mappings for ComfyUI Registration
 # ============================================================================
 
@@ -1247,6 +1348,7 @@ NODE_CLASS_MAPPINGS = {
     "SaveDepthMap": SaveDepthMap,
     "SaveCameraParams": SaveCameraParams,
     "SaveCOLMAPReconstruction": SaveCOLMAPReconstruction,
+    "View3DInBrowser": View3DInBrowser,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -1260,4 +1362,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SaveDepthMap": "Save Depth Map",
     "SaveCameraParams": "Save Camera Parameters",
     "SaveCOLMAPReconstruction": "Save COLMAP Reconstruction",
+    "View3DInBrowser": "View 3D in Browser",
 }
+
+# Web directory for custom frontend extensions (if needed in the future)
+import os
+WEB_DIRECTORY = os.path.join(os.path.dirname(__file__), "web")

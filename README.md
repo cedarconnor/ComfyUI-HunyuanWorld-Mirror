@@ -13,10 +13,11 @@ Transform 2D images into 3D worlds using Tencent's HunyuanWorld-Mirror model dir
 ## ✨ Features
 
 - **🎯 Single-Pass 3D Reconstruction** - Generate point clouds, depth maps, normals, camera parameters, and 3D Gaussians in one forward pass
-- **🎨 9 Essential Nodes** - Complete pipeline from preprocessing to export
+- **🎨 11 Essential Nodes** - Complete pipeline from preprocessing to export and visualization
 - **🔧 ComfyUI Native** - Seamless integration with existing image workflows
 - **📦 Multiple Export Formats** - PLY, OBJ, XYZ for point clouds; NPY, EXR, PFM for depth; JSON, COLMAP for cameras
 - **✨ 3D Gaussian Splatting** - Export to standard 3DGS format compatible with SuperSplat, gsplat viewers
+- **🌐 Interactive 3D Viewer** - View point clouds and Gaussian splats directly in your browser with WebGL
 - **💾 Memory Efficient** - Automatic batch processing handles sequences of any length
 - **🚀 Easy Installation** - One-command setup for Windows and Linux
 - **🎛️ Confidence Filtering** - Remove low-quality points based on model confidence
@@ -203,6 +204,11 @@ The HunyuanWorld-Mirror model files need to be placed in ComfyUI's models direct
    - Connect `gaussians` → `Save3DGaussians` (exports to PLY for SuperSplat/gsplat viewers)
    - Connect `poses + intrinsics` → `SaveCameraParams` (exports to JSON/COLMAP)
 
+7. **View in 3D (Optional):**
+   - Connect saved file path → `View3DInBrowser` node
+   - Interactive viewer opens automatically in your browser
+   - Navigate with mouse controls and keyboard shortcuts
+
 ---
 
 ## 🎯 Node Reference
@@ -373,15 +379,85 @@ Export camera parameters for 3D reconstruction tools.
 - `camera_poses` (POSES): Camera poses from HWMInference
 - `camera_intrinsics` (INTRINSICS): Intrinsics from HWMInference
 - `filepath` (STRING): Output file path
-- `format` (COMBO): ["json", "colmap", "npy"]
+- `format` (COMBO): ["json", "npy"]
 
 **Outputs:**
 - `filepath` (STRING): Saved file location
 
 **Supported Formats:**
 - **JSON**: Human-readable with all parameters
-- **COLMAP**: Binary format for COLMAP/MVS tools
 - **NPY**: NumPy arrays (separate files)
+
+---
+
+### 10. SaveCOLMAPReconstruction
+
+Export a complete COLMAP reconstruction for Structure-from-Motion pipelines.
+
+**Inputs:**
+- `pts3d` (POINTS3D): 3D points from HWMInference
+- `camera_poses` (POSES): Camera poses from HWMInference
+- `camera_intrinsics` (INTRINSICS): Camera intrinsics from HWMInference
+- `output_dir` (STRING): Output directory path
+- `camera_model` (COMBO): ["SIMPLE_PINHOLE", "PINHOLE"] - COLMAP camera model
+- `shared_camera` (BOOLEAN): Share camera parameters across frames
+- `subsample_factor` (INT): Downsample points by this factor (1-16, default: 4)
+- `pts3d_rgb` (optional): RGB colors for 3D points
+
+**Outputs:**
+- `output_path` (STRING): Directory containing COLMAP files
+
+**Output Files:**
+- `cameras.bin`: Camera parameters in COLMAP binary format
+- `images.bin`: Image metadata and poses
+- `points3D.bin`: Sparse 3D point cloud
+
+**Notes:**
+- Creates a valid COLMAP reconstruction that can be opened in COLMAP GUI
+- Useful for MVS (Multi-View Stereo) pipelines
+- Automatically converts dense points to sparse representation
+
+---
+
+### 11. View 3D in Browser
+
+Launch an interactive WebGL viewer to visualize point clouds and Gaussian splats in your browser.
+
+**Inputs:**
+- `file_path` (STRING): Path to .ply or .splat file
+- `mode` (COMBO): ["auto", "pointcloud", "splat"] - Rendering mode
+- `auto_open` (BOOLEAN): Automatically open browser (default: True)
+- `port` (INT): HTTP server port (1024-65535, default: 8765)
+
+**Outputs:**
+- `viewer_url` (STRING): URL to access the viewer
+
+**Features:**
+- **Interactive Controls**: Orbit, pan, zoom with mouse
+- **Adjustable Point Size**: Real-time size slider
+- **Auto-Rotation**: Optional automatic rotation
+- **Keyboard Shortcuts**:
+  - G: Toggle grid
+  - A: Toggle axes
+  - R: Reset camera
+  - H: Toggle UI
+- **File Info**: Displays vertex count, colors, normals, and size
+
+**Usage:**
+1. Connect the `filepath` output from `SavePointCloud` or `Save3DGaussians`
+2. Execute the workflow
+3. Viewer opens automatically in your default browser
+4. Use mouse to navigate:
+   - Left-click + drag: Rotate
+   - Right-click + drag: Pan
+   - Scroll: Zoom
+
+**Technical Details:**
+- Uses Three.js for WebGL rendering
+- Runs on localhost (no external network access)
+- Works with any .ply file containing position data
+- Supports vertex colors and normals
+- No GPU required (browser-based rendering)
 
 ---
 

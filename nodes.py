@@ -737,6 +737,90 @@ class SavePointCloud:
         normals_np = tensor_to_numpy(normals) if normals is not None else None
         confidence_np = tensor_to_numpy(confidence) if confidence is not None else None
 
+        # Fix dimension mismatch: resize colors/normals to match points3d if needed
+        if colors_np is not None:
+            # Get spatial dimensions
+            # points3d: [1, N, H, W, 3] or [N, H, W, 3]
+            # colors: [N, H_orig, W_orig, 3]
+            points_shape = points_np.shape
+            colors_shape = colors_np.shape
+
+            # Determine points spatial dimensions
+            if len(points_shape) == 5:
+                # [1, N, H, W, 3]
+                pts_h, pts_w = points_shape[2], points_shape[3]
+            elif len(points_shape) == 4:
+                # [N, H, W, 3]
+                pts_h, pts_w = points_shape[1], points_shape[2]
+            else:
+                pts_h, pts_w = None, None
+
+            # Determine colors spatial dimensions
+            if len(colors_shape) == 4:
+                # [N, H, W, 3]
+                col_h, col_w = colors_shape[1], colors_shape[2]
+            else:
+                col_h, col_w = None, None
+
+            # Resize if dimensions don't match
+            if pts_h is not None and col_h is not None and (pts_h != col_h or pts_w != col_w):
+                print(f"  Resizing colors from {col_h}x{col_w} to {pts_h}x{pts_w} to match points3d")
+                # Use torch for resizing then convert back
+                colors_torch = torch.from_numpy(colors_np)
+                # [N, H, W, 3] -> [N, 3, H, W] for interpolate
+                colors_torch = colors_torch.permute(0, 3, 1, 2)
+                colors_torch = torch.nn.functional.interpolate(
+                    colors_torch,
+                    size=(pts_h, pts_w),
+                    mode='bilinear',
+                    align_corners=False
+                )
+                # [N, 3, H, W] -> [N, H, W, 3]
+                colors_torch = colors_torch.permute(0, 2, 3, 1)
+                colors_np = colors_torch.numpy()
+
+        # Similar fix for normals
+        if normals_np is not None:
+            points_shape = points_np.shape
+            normals_shape = normals_np.shape
+
+            # Determine points spatial dimensions
+            if len(points_shape) == 5:
+                pts_h, pts_w = points_shape[2], points_shape[3]
+            elif len(points_shape) == 4:
+                pts_h, pts_w = points_shape[1], points_shape[2]
+            else:
+                pts_h, pts_w = None, None
+
+            # Determine normals spatial dimensions
+            if len(normals_shape) == 5:
+                # [1, N, H, W, 3]
+                norm_h, norm_w = normals_shape[2], normals_shape[3]
+            elif len(normals_shape) == 4:
+                # [N, H, W, 3]
+                norm_h, norm_w = normals_shape[1], normals_shape[2]
+            else:
+                norm_h, norm_w = None, None
+
+            # Resize if dimensions don't match
+            if pts_h is not None and norm_h is not None and (pts_h != norm_h or pts_w != norm_w):
+                print(f"  Resizing normals from {norm_h}x{norm_w} to {pts_h}x{pts_w} to match points3d")
+                # Remove batch dim if present
+                if len(normals_shape) == 5:
+                    normals_np = normals_np.squeeze(0)
+                normals_torch = torch.from_numpy(normals_np)
+                # [N, H, W, 3] -> [N, 3, H, W]
+                normals_torch = normals_torch.permute(0, 3, 1, 2)
+                normals_torch = torch.nn.functional.interpolate(
+                    normals_torch,
+                    size=(pts_h, pts_w),
+                    mode='bilinear',
+                    align_corners=False
+                )
+                # [N, 3, H, W] -> [N, H, W, 3]
+                normals_torch = normals_torch.permute(0, 2, 3, 1)
+                normals_np = normals_torch.numpy()
+
         # Ensure file extension matches format
         if not filepath.endswith(f'.{format}'):
             filepath = filepath.rsplit('.', 1)[0] + f'.{format}'

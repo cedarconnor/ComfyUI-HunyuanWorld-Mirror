@@ -106,22 +106,27 @@ function registerVisualizer(nodeType, nodeData, nodeName, typeName) {
                         return;
                     }
 
-                    // Get node bounding box
+                    // Get node position
                     const [nodeX, nodeY] = node.getBounding();
 
-                    // Convert to client coordinates
-                    const [left, top] = app.canvasPosToClientPos([nodeX, nodeY + y]);
+                    // Calculate offset for node title and margins
+                    // LiteGraph.NODE_TITLE_HEIGHT is typically 30, plus some margin
+                    const topOffset = (LiteGraph.NODE_TITLE_HEIGHT + 30);
+
+                    // Convert to client coordinates with offset
+                    const [left, top] = app.canvasPosToClientPos([nodeX, nodeY]);
 
                     // Calculate dimensions
                     const viewerHeight = 600;
-                    const scaledWidth = width * scale;
+                    const scaledWidth = node.size[0] * scale;
                     const scaledHeight = viewerHeight * scale;
+                    const scaledTopOffset = topOffset * scale;
 
-                    // Position iframe
+                    // Position iframe with proper offset
                     visualizer.iframe.style.display = "block";
                     visualizer.iframe.style.position = "absolute";
                     visualizer.iframe.style.left = `${left}px`;
-                    visualizer.iframe.style.top = `${top}px`;
+                    visualizer.iframe.style.top = `${top + scaledTopOffset}px`;
                     visualizer.iframe.style.width = `${scaledWidth}px`;
                     visualizer.iframe.style.height = `${scaledHeight}px`;
                     visualizer.iframe.style.zIndex = "5";

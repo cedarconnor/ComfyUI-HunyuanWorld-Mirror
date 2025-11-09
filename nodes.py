@@ -647,6 +647,11 @@ class VisualizeNormals:
     def visualize(self, normals: torch.Tensor) -> Tuple[torch.Tensor]:
         """Convert normals to RGB image."""
 
+        # Handle batch dimension - squeeze if present
+        if normals.ndim == 5:
+            # [1, N, H, W, 3] -> [N, H, W, 3]
+            normals = normals.squeeze(0)
+
         # Normals are expected in range [-1, 1]
         # Convert to [0, 1] for visualization
         normals_rgb = normals_to_rgb(normals)

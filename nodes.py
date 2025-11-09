@@ -1233,122 +1233,6 @@ class SaveCOLMAPReconstruction:
 
 
 # ============================================================================
-# Node 10: Preview3DGS
-# ============================================================================
-
-class Preview3DGS:
-    """
-    Interactive 3D Gaussian Splatting viewer.
-    Displays .ply files with Gaussian parameters in real-time.
-    """
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "gs_file_path": ("STRING", {
-                    "default": "./output/gaussians.ply",
-                    "multiline": False,
-                    "tooltip": "Path to the Gaussian Splatting PLY file. This will be displayed in an interactive 3D viewer within ComfyUI."
-                }),
-            },
-        }
-
-    OUTPUT_NODE = True
-    RETURN_TYPES = ()
-    FUNCTION = "preview"
-    CATEGORY = "HunyuanWorld-Mirror/visualization"
-
-    def preview(self, gs_file_path: str) -> Dict:
-        """Display Gaussian Splatting PLY in interactive viewer."""
-        import os
-        import folder_paths
-
-        # Resolve path
-        if not os.path.isabs(gs_file_path):
-            # Normalize relative path (strip leading ./ or ./output/)
-            normalized_path = gs_file_path.lstrip('./')
-            if normalized_path.startswith('output/'):
-                normalized_path = normalized_path[7:]  # Remove 'output/' prefix
-            gs_file_path = os.path.join(folder_paths.get_output_directory(), normalized_path)
-
-        # Validate file
-        if not os.path.exists(gs_file_path):
-            print(f"⚠ Warning: File not found: {gs_file_path}")
-            return {"ui": {"previews": []}, "result": ()}
-
-        if not gs_file_path.lower().endswith('.ply'):
-            print(f"⚠ Warning: File must be .ply format: {gs_file_path}")
-            return {"ui": {"previews": []}, "result": ()}
-
-        print(f"[Preview3DGS] Displaying: {gs_file_path}")
-
-        previews = [{
-            "filepath": gs_file_path,
-        }]
-
-        return {"ui": {"previews": previews}, "result": ()}
-
-
-# ============================================================================
-# Node 11: PreviewPointCloud
-# ============================================================================
-
-class PreviewPointCloud:
-    """
-    Interactive point cloud viewer.
-    Displays .ply point cloud files with colors in real-time.
-    """
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "pointcloud_file_path": ("STRING", {
-                    "default": "./output/pointcloud.ply",
-                    "multiline": False,
-                    "tooltip": "Path to the point cloud PLY file. This will be displayed in an interactive 3D viewer within ComfyUI with orbit controls."
-                }),
-            },
-        }
-
-    OUTPUT_NODE = True
-    RETURN_TYPES = ()
-    FUNCTION = "preview"
-    CATEGORY = "HunyuanWorld-Mirror/visualization"
-
-    def preview(self, pointcloud_file_path: str) -> Dict:
-        """Display point cloud PLY in interactive viewer."""
-        import os
-        import folder_paths
-
-        # Resolve path
-        if not os.path.isabs(pointcloud_file_path):
-            # Normalize relative path (strip leading ./ or ./output/)
-            normalized_path = pointcloud_file_path.lstrip('./')
-            if normalized_path.startswith('output/'):
-                normalized_path = normalized_path[7:]  # Remove 'output/' prefix
-            pointcloud_file_path = os.path.join(folder_paths.get_output_directory(), normalized_path)
-
-        # Validate file
-        if not os.path.exists(pointcloud_file_path):
-            print(f"⚠ Warning: File not found: {pointcloud_file_path}")
-            return {"ui": {"previews": []}, "result": ()}
-
-        if not pointcloud_file_path.lower().endswith('.ply'):
-            print(f"⚠ Warning: File must be .ply format: {pointcloud_file_path}")
-            return {"ui": {"previews": []}, "result": ()}
-
-        print(f"[PreviewPointCloud] Displaying: {pointcloud_file_path}")
-
-        previews = [{
-            "filepath": pointcloud_file_path,
-        }]
-
-        return {"ui": {"previews": previews}, "result": ()}
-
-
-# ============================================================================
 # Node Mappings for ComfyUI Registration
 # ============================================================================
 
@@ -1363,8 +1247,6 @@ NODE_CLASS_MAPPINGS = {
     "SaveDepthMap": SaveDepthMap,
     "SaveCameraParams": SaveCameraParams,
     "SaveCOLMAPReconstruction": SaveCOLMAPReconstruction,
-    "Preview3DGS": Preview3DGS,
-    "PreviewPointCloud": PreviewPointCloud,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -1378,9 +1260,4 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SaveDepthMap": "Save Depth Map",
     "SaveCameraParams": "Save Camera Parameters",
     "SaveCOLMAPReconstruction": "Save COLMAP Reconstruction",
-    "Preview3DGS": "Preview 3D Gaussians",
-    "PreviewPointCloud": "Preview Point Cloud",
 }
-
-# Web directory for custom visualizations
-WEB_DIRECTORY = "./web"

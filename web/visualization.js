@@ -17,11 +17,14 @@ class Visualizer {
     }
 
     createContainer() {
+        console.log(`[Visualizer] 🔨 Creating container for ${this.typeName}`);
+
         // Create container div
         const container = document.createElement("div");
         container.style.position = "absolute";
         container.style.overflow = "hidden";
         container.style.display = "none";  // Hidden until positioned
+        container.id = `HunyuanWorld_${this.typeName}_${Date.now()}`;
 
         // Create iframe inside container
         const iframe = document.createElement("iframe");
@@ -31,52 +34,77 @@ class Visualizer {
         iframe.scrolling = "no";
         iframe.src = `/extensions/ComfyUI-HunyuanWorld-Mirror/html/${this.typeName}.html`;
 
+        console.log(`[Visualizer] 📄 iframe src: ${iframe.src}`);
+
         // Wait for iframe to load before trying to access content
         iframe.addEventListener('load', () => {
-            console.log(`[Visualizer] iframe loaded: ${this.typeName}`);
+            console.log(`[Visualizer] ✅ iframe loaded successfully: ${this.typeName}`);
             this.iframeLoaded = true;
             // If we have a pending filepath, update it now
             if (this.filepath) {
+                console.log(`[Visualizer] 📦 Applying pending filepath: ${this.filepath}`);
                 const filepath = this.filepath;
                 this.filepath = null;  // Reset to trigger update
                 this.updateVisual(filepath);
+            } else {
+                console.log(`[Visualizer] ⏳ No pending filepath yet`);
             }
+        });
+
+        iframe.addEventListener('error', (e) => {
+            console.error(`[Visualizer] ❌ iframe load error:`, e);
         });
 
         container.appendChild(iframe);
         this.iframe = iframe;
 
+        console.log(`[Visualizer] ✓ Container created with ID: ${container.id}`);
         return container;
     }
 
     updateVisual(filepath) {
+        console.log(`[Visualizer] 🔄 updateVisual called with filepath: ${filepath}`);
+        console.log(`[Visualizer] Current filepath: ${this.filepath}, iframeLoaded: ${this.iframeLoaded}`);
+
         if (filepath && filepath !== this.filepath) {
             this.filepath = filepath;
             this.timestamp = Date.now();
 
+            console.log(`[Visualizer] 📝 Set new filepath: ${this.filepath}, timestamp: ${this.timestamp}`);
+
             // If iframe not loaded yet, the load event will handle the update
             if (!this.iframeLoaded) {
-                console.log(`[Visualizer] iframe not loaded yet, will update after load`);
+                console.log(`[Visualizer] ⏰ iframe not loaded yet, will update after load`);
                 return;
             }
 
             if (this.iframe && this.iframe.contentWindow) {
                 try {
                     const iframeDoc = this.iframe.contentDocument || this.iframe.contentWindow.document;
+                    console.log(`[Visualizer] 📄 Got iframe document:`, iframeDoc ? '✓' : '✗');
+
                     if (iframeDoc) {
                         const visualizer = iframeDoc.getElementById("visualizer");
+                        console.log(`[Visualizer] 🔍 Looking for visualizer element:`, visualizer ? '✓ Found' : '✗ Not found');
+
                         if (visualizer) {
                             visualizer.setAttribute("filepath", this.filepath);
                             visualizer.setAttribute("timestamp", this.timestamp.toString());
-                            console.log(`[Visualizer] Updated: ${this.filepath}`);
+                            console.log(`[Visualizer] ✅ Updated attributes - filepath: ${this.filepath}, timestamp: ${this.timestamp}`);
                         } else {
-                            console.warn("[Visualizer] Script element not found in iframe");
+                            console.warn("[Visualizer] ❌ Script element #visualizer not found in iframe");
+                            console.log("[Visualizer] Available elements:", Array.from(iframeDoc.querySelectorAll('[id]')).map(el => el.id));
                         }
                     }
                 } catch (error) {
-                    console.error("[Visualizer] Error accessing iframe:", error);
+                    console.error("[Visualizer] ❌ Error accessing iframe:", error);
+                    console.error("[Visualizer] Error stack:", error.stack);
                 }
+            } else {
+                console.warn("[Visualizer] ❌ iframe or contentWindow not available");
             }
+        } else {
+            console.log(`[Visualizer] ⏭️ Skipping update - no change or invalid filepath`);
         }
     }
 }
@@ -107,6 +135,7 @@ function registerVisualizer(nodeType, nodeData, nodeName, typeName) {
                     // Ensure container is attached to DOM
                     const canvasEl = node.graph.list_of_graphcanvas[0].canvas;
                     if (visualizer.container.parentElement !== canvasEl.parentElement) {
+                        console.log(`[${nodeName}] 🔗 Attaching container to DOM`);
                         canvasEl.parentElement.appendChild(visualizer.container);
                     }
 
@@ -139,6 +168,12 @@ function registerVisualizer(nodeType, nodeData, nodeName, typeName) {
                         zIndex: "5",
                         pointerEvents: "auto"
                     });
+
+                    // Log positioning details periodically (every 100 frames)
+                    if (!this._drawCallCount) this._drawCallCount = 0;
+                    if (++this._drawCallCount % 100 === 0) {
+                        console.log(`[${nodeName}] 📐 Positioned container at (${left}, ${top + (topOffset * scale)}) size ${containerWidth}x${containerHeight}`);
+                    }
                 },
                 computeSize: function(width) {
                     return [width, 600];  // Fixed height for viewer
@@ -165,10 +200,23 @@ function registerVisualizer(nodeType, nodeData, nodeName, typeName) {
 
         const onExecuted = nodeType.prototype.onExecuted;
         nodeType.prototype.onExecuted = function (message) {
+            console.log(`[${nodeName}] 📨 onExecuted called with message:`, message);
+
             const result = onExecuted?.apply(this, arguments);
 
             if (message?.previews?.[0]?.filepath) {
-                this.visualizer?.updateVisual(message.previews[0].filepath);
+                const filepath = message.previews[0].filepath;
+                console.log(`[${nodeName}] 📁 Got filepath from previews:`, filepath);
+                console.log(`[${nodeName}] Visualizer exists:`, !!this.visualizer);
+
+                if (this.visualizer) {
+                    this.visualizer.updateVisual(filepath);
+                } else {
+                    console.error(`[${nodeName}] ❌ Visualizer not initialized!`);
+                }
+            } else {
+                console.warn(`[${nodeName}] ⚠️ No filepath in message.previews`);
+                console.log(`[${nodeName}] Message structure:`, JSON.stringify(message, null, 2));
             }
 
             return result;

@@ -582,6 +582,10 @@ class VisualizeDepth:
             # [1, N, H, W]
             depth_np = depth_np.squeeze(0)
             batch_size = depth_np.shape[0]
+        elif depth_np.ndim == 5:
+            # [1, N, H, W, 1] - squeeze first and last dimensions
+            depth_np = depth_np.squeeze(0).squeeze(-1)
+            batch_size = depth_np.shape[0]
         else:
             raise ValueError(f"Unexpected depth shape: {depth_np.shape}")
 
@@ -1173,7 +1177,11 @@ class Preview3DGS:
 
         # Resolve path
         if not os.path.isabs(gs_file_path):
-            gs_file_path = os.path.join(folder_paths.get_output_directory(), gs_file_path)
+            # Normalize relative path (strip leading ./ or ./output/)
+            normalized_path = gs_file_path.lstrip('./')
+            if normalized_path.startswith('output/'):
+                normalized_path = normalized_path[7:]  # Remove 'output/' prefix
+            gs_file_path = os.path.join(folder_paths.get_output_directory(), normalized_path)
 
         # Validate file
         if not os.path.exists(gs_file_path):
@@ -1227,7 +1235,11 @@ class PreviewPointCloud:
 
         # Resolve path
         if not os.path.isabs(pointcloud_file_path):
-            pointcloud_file_path = os.path.join(folder_paths.get_output_directory(), pointcloud_file_path)
+            # Normalize relative path (strip leading ./ or ./output/)
+            normalized_path = pointcloud_file_path.lstrip('./')
+            if normalized_path.startswith('output/'):
+                normalized_path = normalized_path[7:]  # Remove 'output/' prefix
+            pointcloud_file_path = os.path.join(folder_paths.get_output_directory(), normalized_path)
 
         # Validate file
         if not os.path.exists(pointcloud_file_path):

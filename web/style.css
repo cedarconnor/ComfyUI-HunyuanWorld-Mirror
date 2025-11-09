@@ -1,0 +1,179 @@
+/* ComfyUI 3D Viewer Styles */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    overflow: hidden;
+    background: #1a1a1a;
+    color: #ffffff;
+}
+
+canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+}
+
+#info {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(10px);
+    padding: 20px;
+    border-radius: 12px;
+    font-size: 13px;
+    line-height: 1.6;
+    max-width: 350px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    z-index: 100;
+    transition: opacity 0.3s ease;
+}
+
+#info h1 {
+    font-size: 18px;
+    margin-bottom: 12px;
+    color: #00aaff;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+#file-info {
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#controls-info {
+    margin-bottom: 15px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    font-size: 12px;
+}
+
+#settings {
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#settings label {
+    display: block;
+    margin-bottom: 10px;
+    cursor: pointer;
+    user-select: none;
+}
+
+#settings input[type="range"] {
+    width: 150px;
+    vertical-align: middle;
+    margin: 0 8px;
+    accent-color: #00aaff;
+}
+
+#settings input[type="checkbox"] {
+    margin-right: 8px;
+    accent-color: #00aaff;
+    cursor: pointer;
+}
+
+#pointSizeValue {
+    display: inline-block;
+    min-width: 50px;
+    font-family: monospace;
+    color: #00aaff;
+}
+
+#loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    z-index: 200;
+    background: rgba(0, 0, 0, 0.9);
+    padding: 40px 60px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#loading p {
+    margin-top: 20px;
+    font-size: 16px;
+    color: #ffffff;
+}
+
+.spinner {
+    width: 50px;
+    height: 50px;
+    margin: 0 auto;
+    border: 4px solid rgba(255, 255, 255, 0.1);
+    border-top: 4px solid #00aaff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    #info {
+        top: 10px;
+        left: 10px;
+        right: 10px;
+        max-width: none;
+        font-size: 12px;
+        padding: 15px;
+    }
+
+    #info h1 {
+        font-size: 16px;
+    }
+
+    #settings input[type="range"] {
+        width: 120px;
+    }
+}
+
+/* Fade in animation */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+#info {
+    animation: fadeIn 0.5s ease-out;
+}

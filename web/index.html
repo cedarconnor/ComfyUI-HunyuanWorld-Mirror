@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ComfyUI 3D Viewer - Gaussian Splats & Point Clouds</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="info">
+        <h1>ComfyUI 3D Viewer</h1>
+        <div id="file-info">Loading...</div>
+        <div id="controls-info">
+            <strong>Controls:</strong><br>
+            • Left-click + drag: Rotate<br>
+            • Right-click + drag: Pan<br>
+            • Scroll: Zoom
+        </div>
+        <div id="settings">
+            <label>
+                Point Size: <input type="range" id="pointSize" min="0.001" max="0.1" step="0.001" value="0.01">
+                <span id="pointSizeValue">0.01</span>
+            </label>
+            <br>
+            <label>
+                <input type="checkbox" id="autoRotate"> Auto Rotate
+            </label>
+        </div>
+    </div>
+
+    <div id="loading">
+        <div class="spinner"></div>
+        <p>Loading 3D data...</p>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { PLYLoader } from 'three/addons/loaders/PLYLoader.js';
+
+        // Get URL parameters
+        const params = new URLSearchParams(window.location.search);
+        const filePath = params.get('file');
+        const mode = params.get('mode') || 'pointcloud';
+
+        if (!filePath) {
+            document.getElementById('loading').innerHTML = '<p style="color: red;">Error: No file specified. Use ?file=path/to/file.ply</p>';
+            throw new Error('No file path provided');
+        }
+
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a1a);
+
+        const camera = new THREE.PerspectiveCamera(
+            75,
+            window.innerWidth / window.innerHeight,
+            0.01,
+            1000
+        );
+        camera.position.set(2, 2, 2);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({
+            antialias: true,
+            alpha: false
+        });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        // Controls
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.screenSpacePanning = true;
+        controls.minDistance = 0.1;
+        controls.maxDistance = 100;
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.4);
+        directionalLight.position.set(1, 1, 1);
+        scene.add(directionalLight);
+
+        // Grid helper
+        const gridHelper = new THREE.GridHelper(10, 10, 0x444444, 0x222222);
+        scene.add(gridHelper);
+
+        // Axes helper
+        const axesHelper = new THREE.AxesHelper(1);
+        scene.add(axesHelper);
+
+        // Global reference to points material for controls
+        let pointsMaterial = null;
+        let pointsObject = null;
+
+        // Load PLY file
+        const loader = new PLYLoader();
+        const loadingDiv = document.getElementById('loading');
+        const fileInfoDiv = document.getElementById('file-info');
+
+        // Convert file path for web access
+        // If it's an absolute path, we need to serve it through our server
+        const fileUrl = `/file?path=${encodeURIComponent(filePath)}`;
+
+        loader.load(
+            fileUrl,
+            (geometry) => {
+                loadingDiv.style.display = 'none';
+
+                // Compute normals if not present
+                if (!geometry.attributes.normal) {
+                    geometry.computeVertexNormals();
+                }
+
+                // Center geometry
+                geometry.computeBoundingBox();
+                const center = new THREE.Vector3();
+                geometry.boundingBox.getCenter(center);
+                geometry.translate(-center.x, -center.y, -center.z);
+
+                // Determine point size based on mode and geometry bounds
+                const boundingBox = geometry.boundingBox;
+                const size = new THREE.Vector3();
+                boundingBox.getSize(size);
+                const maxDim = Math.max(size.x, size.y, size.z);
+
+                const basePointSize = mode === 'splat' ? maxDim * 0.005 : maxDim * 0.002;
+
+                // Create material based on mode
+                pointsMaterial = new THREE.PointsMaterial({
+                    size: basePointSize,
+                    vertexColors: geometry.attributes.color ? true : false,
+                    sizeAttenuation: true,
+                    transparent: mode === 'splat',
+                    opacity: mode === 'splat' ? 0.8 : 1.0,
+                    alphaTest: 0.01
+                });
+
+                // If no vertex colors, use a default color
+                if (!geometry.attributes.color) {
+                    pointsMaterial.color = new THREE.Color(0x00aaff);
+                }
+
+                // Create points
+                pointsObject = new THREE.Points(geometry, pointsMaterial);
+                scene.add(pointsObject);
+
+                // Update file info
+                const vertexCount = geometry.attributes.position.count;
+                const hasColors = geometry.attributes.color ? 'Yes' : 'No';
+                const hasNormals = geometry.attributes.normal ? 'Yes' : 'No';
+
+                fileInfoDiv.innerHTML = `
+                    <strong>File:</strong> ${filePath.split('/').pop()}<br>
+                    <strong>Mode:</strong> ${mode}<br>
+                    <strong>Points:</strong> ${vertexCount.toLocaleString()}<br>
+                    <strong>Colors:</strong> ${hasColors}<br>
+                    <strong>Normals:</strong> ${hasNormals}<br>
+                    <strong>Size:</strong> ${maxDim.toFixed(2)} units
+                `;
+
+                // Update point size control
+                const pointSizeSlider = document.getElementById('pointSize');
+                pointSizeSlider.value = basePointSize;
+                pointSizeSlider.min = basePointSize * 0.1;
+                pointSizeSlider.max = basePointSize * 10;
+                pointSizeSlider.step = basePointSize * 0.1;
+                document.getElementById('pointSizeValue').textContent = basePointSize.toFixed(4);
+
+                // Adjust camera position based on model size
+                const dist = maxDim * 2;
+                camera.position.set(dist, dist * 0.5, dist);
+                camera.lookAt(0, 0, 0);
+                controls.update();
+
+                console.log('Loaded 3D data:', {
+                    vertices: vertexCount,
+                    hasColors,
+                    hasNormals,
+                    bounds: size
+                });
+            },
+            (progress) => {
+                const percent = (progress.loaded / progress.total * 100).toFixed(0);
+                loadingDiv.innerHTML = `
+                    <div class="spinner"></div>
+                    <p>Loading 3D data... ${percent}%</p>
+                `;
+            },
+            (error) => {
+                loadingDiv.innerHTML = `<p style="color: #ff4444;">Error loading file:<br>${error.message}</p>`;
+                console.error('Error loading PLY file:', error);
+            }
+        );
+
+        // Point size control
+        document.getElementById('pointSize').addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            if (pointsMaterial) {
+                pointsMaterial.size = value;
+                pointsMaterial.needsUpdate = true;
+            }
+            document.getElementById('pointSizeValue').textContent = value.toFixed(4);
+        });
+
+        // Auto-rotate control
+        document.getElementById('autoRotate').addEventListener('change', (e) => {
+            controls.autoRotate = e.target.checked;
+            controls.autoRotateSpeed = 2.0;
+        });
+
+        // Window resize handler
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            switch(e.key.toLowerCase()) {
+                case 'g':
+                    gridHelper.visible = !gridHelper.visible;
+                    break;
+                case 'a':
+                    axesHelper.visible = !axesHelper.visible;
+                    break;
+                case 'r':
+                    controls.reset();
+                    break;
+                case 'h':
+                    document.getElementById('info').style.display =
+                        document.getElementById('info').style.display === 'none' ? 'block' : 'none';
+                    break;
+            }
+        });
+
+        console.log('ComfyUI 3D Viewer initialized');
+        console.log('Keyboard shortcuts: G=toggle grid, A=toggle axes, R=reset view, H=toggle UI');
+    </script>
+</body>
+</html>

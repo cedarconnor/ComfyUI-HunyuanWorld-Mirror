@@ -13,11 +13,10 @@ Transform 2D images into 3D worlds using Tencent's HunyuanWorld-Mirror model dir
 ## ✨ Features
 
 - **🎯 Single-Pass 3D Reconstruction** - Generate point clouds, depth maps, normals, camera parameters, and 3D Gaussians in one forward pass
-- **🎨 11 Specialized Nodes** - Complete pipeline from preprocessing to interactive 3D visualization
+- **🎨 9 Essential Nodes** - Complete pipeline from preprocessing to export
 - **🔧 ComfyUI Native** - Seamless integration with existing image workflows
 - **📦 Multiple Export Formats** - PLY, OBJ, XYZ for point clouds; NPY, EXR, PFM for depth; JSON, COLMAP for cameras
-- **✨ 3D Gaussian Splatting** - Export to standard 3DGS format for novel view synthesis
-- **🖥️ Interactive 3D Viewers** - Built-in viewers for Gaussian splats and point clouds with orbit controls
+- **✨ 3D Gaussian Splatting** - Export to standard 3DGS format compatible with SuperSplat, gsplat viewers
 - **💾 Memory Efficient** - Automatic batch processing handles sequences of any length
 - **🚀 Easy Installation** - One-command setup for Windows and Linux
 - **🎛️ Confidence Filtering** - Remove low-quality points based on model confidence
@@ -199,13 +198,10 @@ The HunyuanWorld-Mirror model files need to be placed in ComfyUI's models direct
    - Connect `depth` → `VisualizeDepth` → `PreviewImage`
    - Connect `normals` → `VisualizeNormals` → `PreviewImage`
 
-6. **View 3D Data Interactively:**
-   - Connect `gaussians` filepath → `Preview3DGS` (interactive viewer)
-   - Connect `points3d` filepath → `PreviewPointCloud` (interactive viewer)
-
-7. **Export 3D Data:**
-   - Connect `points3d` → `SavePointCloud`
-   - Connect `gaussians` → `Save3DGaussians`
+6. **Export 3D Data:**
+   - Connect `points3d` → `SavePointCloud` (exports to PLY, OBJ, or XYZ)
+   - Connect `gaussians` → `Save3DGaussians` (exports to PLY for SuperSplat/gsplat viewers)
+   - Connect `poses + intrinsics` → `SaveCameraParams` (exports to JSON/COLMAP)
 
 ---
 
@@ -389,36 +385,6 @@ Export camera parameters for 3D reconstruction tools.
 
 ---
 
-### 10. Preview3DGS
-
-Interactive 3D Gaussian Splatting viewer with orbit controls.
-
-**Inputs:**
-- `gs_file_path` (STRING): Path to Gaussian splat PLY file
-
-**Features:**
-- Orbit, pan, zoom controls
-- Real-time rendering
-- Embedded in ComfyUI node
-- Automatically updates when new file saved
-
----
-
-### 11. PreviewPointCloud
-
-Interactive point cloud viewer with orbit controls.
-
-**Inputs:**
-- `pointcloud_file_path` (STRING): Path to point cloud PLY file
-
-**Features:**
-- Orbit, pan, zoom controls
-- Colored point cloud display
-- Real-time rendering
-- Embedded in ComfyUI node
-
----
-
 ## 💻 System Requirements
 
 ### Minimum Requirements
@@ -462,21 +428,17 @@ Interactive point cloud viewer with orbit controls.
   - Use `fp16` precision instead of `fp32`
   - Process fewer frames at once
 
-**Problem: 3D viewers show black screen**
-- **Solution**:
-  - Hard refresh browser (Ctrl+Shift+R)
-  - Check browser console (F12) for errors
-  - Ensure PLY files exist at specified paths
-  - Try closing and reopening ComfyUI
+**Problem: How do I view the exported 3D files?**
+- **Solution**: Use external viewers:
+  - **Point Clouds (PLY)**: [MeshLab](https://www.meshlab.net/), [CloudCompare](https://www.cloudcompare.org/), [Blender](https://www.blender.org/)
+  - **Gaussian Splats (PLY)**: [SuperSplat](https://playcanvas.com/supersplat) (web), [gsplat](https://github.com/nerfstudio-project/gsplat) (Python)
+  - **Depth Maps**: Any image viewer (after converting to PNG/EXR)
 
-**Problem: Point cloud is upside down**
-- **Solution**: This is fixed in latest version. Pull latest code.
+**Problem: Point cloud looks noisy**
+- **Solution**: Use confidence filtering in SavePointCloud node (try 85-95 percentile)
 
-**Problem: Colors don't match point cloud**
-- **Solution**: Automatic resizing handles this. Ensure using latest version.
-
-**Problem: Viewers are offset from nodes**
-- **Solution**: Fixed in latest version. Hard refresh browser.
+**Problem: Gaussian splats have artifacts**
+- **Solution**: Adjust filter_scale_percentile in Save3DGaussians (try 90-98)
 
 ---
 
@@ -512,39 +474,41 @@ Interactive point cloud viewer with orbit controls.
 
 ### Basic 3D Reconstruction
 ```
-LoadImage → PreprocessImagesForHWM → HWMInference → SavePointCloud
-                                       ↓
-                                    Preview3DGS
+LoadImage → PreprocessImagesForHWM → HWMInference → points3d → SavePointCloud
 ```
 
-### Complete Pipeline with Visualization
+### Complete Pipeline with All Outputs
 ```
 LoadImage → PreprocessImagesForHWM → HWMInference →
                                        ├─ depth → VisualizeDepth → PreviewImage
                                        ├─ normals → VisualizeNormals → PreviewImage
-                                       ├─ points3d → SavePointCloud → PreviewPointCloud
-                                       ├─ gaussians → Save3DGaussians → Preview3DGS
+                                       ├─ points3d → SavePointCloud (view in MeshLab/CloudCompare)
+                                       ├─ gaussians → Save3DGaussians (view in SuperSplat)
                                        └─ poses + intrinsics → SaveCameraParams
 ```
+
+**Viewing Exported Files:**
+- Open `.ply` point clouds in [MeshLab](https://www.meshlab.net/), [CloudCompare](https://www.cloudcompare.org/), or [Blender](https://www.blender.org/)
+- Open Gaussian splats in [SuperSplat](https://playcanvas.com/supersplat) (drag and drop the .ply file)
 
 ---
 
 ## 🗺️ Roadmap
 
 ### ✅ Phase 1: Core Functionality (Complete)
-- ✅ 11 essential nodes
+- ✅ 9 essential nodes
 - ✅ Single-pass inference with batch processing
-- ✅ Multiple export formats
-- ✅ Interactive 3D viewers
+- ✅ Multiple export formats (PLY, OBJ, XYZ, NPY, EXR, JSON, COLMAP)
 - ✅ Confidence filtering
 - ✅ Automatic preprocessing
+- ✅ Batch processing for any sequence length
 - ✅ Windows/Linux installation
 
-### 🚧 Phase 2: Advanced Features (In Progress)
+### 🚧 Phase 2: Advanced Features (Planned)
 - [ ] Prior input nodes (poses, depth, intrinsics)
 - [ ] Gaussian optimization/refinement
 - [ ] Video-to-3D conversion (automatic frame extraction)
-- [ ] Advanced camera controls for viewers
+- [ ] Mesh reconstruction from point clouds
 
 ### 🔮 Phase 3: Ecosystem Integration (Planned)
 - [ ] Mesh reconstruction from point clouds
@@ -567,7 +531,6 @@ The HunyuanWorld-Mirror model is developed by Tencent and licensed separately.
 - [Tencent Hunyuan](https://github.com/Tencent-Hunyuan/HunyuanWorld-Mirror) for the HunyuanWorld-Mirror model
 - [gsplat](https://github.com/nerfstudio-project/gsplat) for 3D Gaussian Splatting implementation
 - [ComfyUI](https://github.com/comfyanonymous/ComfyUI) for the amazing node-based interface
-- [ComfyUI-3D-Pack](https://github.com/MrForExample/ComfyUI-3D-Pack) for 3D viewer reference implementation
 
 ---
 

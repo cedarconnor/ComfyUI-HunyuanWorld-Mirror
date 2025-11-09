@@ -103,9 +103,6 @@ async function loadGaussianSplats(filepath) {
         loading.style.display = 'none';
         infoDiv.style.display = 'block';
 
-        // Fit camera to scene
-        fitCameraToScene();
-
     } catch (error) {
         console.error("[GSViewer] Failed to load file:", error);
         console.error("[GSViewer] Error details:", {
@@ -116,15 +113,6 @@ async function loadGaussianSplats(filepath) {
         showError(`Failed to load Gaussian Splatting file:\n${error.message}\n\nCheck browser console for details.`);
         loading.style.display = 'none';
     }
-}
-
-function fitCameraToScene() {
-    if (!scene || scene.splatCount === 0) return;
-
-    // Simple camera positioning - adjust as needed
-    camera.position.set(0, 0, 5);
-    camera.lookAt(0, 0, 0);
-    controls.target.set(0, 0, 0);
 }
 
 function showError(message) {

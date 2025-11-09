@@ -9,18 +9,26 @@ class Visualizer {
     constructor(node, typeName) {
         this.node = node;
         this.typeName = typeName;
+        this.container = null;
         this.iframe = null;
         this.filepath = "";
         this.timestamp = Date.now();
         this.iframeLoaded = false;
     }
 
-    createIframe() {
+    createContainer() {
+        // Create container div
+        const container = document.createElement("div");
+        container.style.position = "absolute";
+        container.style.overflow = "hidden";
+        container.style.display = "none";  // Hidden until positioned
+
+        // Create iframe inside container
         const iframe = document.createElement("iframe");
         iframe.style.width = "100%";
         iframe.style.height = "100%";
         iframe.style.border = "none";
-        iframe.style.display = "none";  // Hidden until positioned
+        iframe.scrolling = "no";
         iframe.src = `/extensions/ComfyUI-HunyuanWorld-Mirror/html/${this.typeName}.html`;
 
         // Wait for iframe to load before trying to access content
@@ -35,7 +43,10 @@ class Visualizer {
             }
         });
 
-        return iframe;
+        container.appendChild(iframe);
+        this.iframe = iframe;
+
+        return container;
     }
 
     updateVisual(filepath) {
@@ -85,52 +96,49 @@ function registerVisualizer(nodeType, nodeData, nodeName, typeName) {
                 type: "3d_preview",
                 value: "",
                 draw: function(ctx, node, width, y) {
-                    // Position iframe using proper ComfyUI coordinate conversion
-                    if (!visualizer.iframe || node.flags.collapsed) {
-                        if (visualizer.iframe) {
-                            visualizer.iframe.style.display = "none";
+                    // Position container using proper ComfyUI coordinate conversion
+                    if (!visualizer.container || node.flags.collapsed) {
+                        if (visualizer.container) {
+                            visualizer.container.style.display = "none";
                         }
                         return;
                     }
 
-                    // Ensure iframe is attached to DOM
-                    const parent = node.graph.list_of_graphcanvas[0].canvas.parentElement;
-                    if (visualizer.iframe.parentElement !== parent) {
-                        parent.appendChild(visualizer.iframe);
+                    // Ensure container is attached to DOM
+                    const canvasEl = node.graph.list_of_graphcanvas[0].canvas;
+                    if (visualizer.container.parentElement !== canvasEl.parentElement) {
+                        canvasEl.parentElement.appendChild(visualizer.container);
                     }
 
                     // Only show if zoomed in enough
                     const scale = app.canvas.ds.scale;
                     if (scale < 0.5) {
-                        visualizer.iframe.style.display = "none";
+                        visualizer.container.style.display = "none";
                         return;
                     }
 
                     // Get node position
-                    const [nodeX, nodeY] = node.getBounding();
+                    const [x, y] = node.getBounding();
+                    const [left, top] = app.canvasPosToClientPos([x, y]);
 
                     // Calculate offset for node title and margins
-                    // LiteGraph.NODE_TITLE_HEIGHT is typically 30, plus some margin
-                    const topOffset = (LiteGraph.NODE_TITLE_HEIGHT + 30);
-
-                    // Convert to client coordinates with offset
-                    const [left, top] = app.canvasPosToClientPos([nodeX, nodeY]);
+                    const topOffset = LiteGraph.NODE_TITLE_HEIGHT + 30;
 
                     // Calculate dimensions
                     const viewerHeight = 600;
-                    const scaledWidth = node.size[0] * scale;
-                    const scaledHeight = viewerHeight * scale;
-                    const scaledTopOffset = topOffset * scale;
+                    const containerWidth = node.size[0] * scale;
+                    const containerHeight = viewerHeight * scale;
 
-                    // Position iframe with proper offset
-                    visualizer.iframe.style.display = "block";
-                    visualizer.iframe.style.position = "absolute";
-                    visualizer.iframe.style.left = `${left}px`;
-                    visualizer.iframe.style.top = `${top + scaledTopOffset}px`;
-                    visualizer.iframe.style.width = `${scaledWidth}px`;
-                    visualizer.iframe.style.height = `${scaledHeight}px`;
-                    visualizer.iframe.style.zIndex = "5";
-                    visualizer.iframe.style.pointerEvents = "auto";
+                    // Position container
+                    Object.assign(visualizer.container.style, {
+                        display: "block",
+                        left: `${left}px`,
+                        top: `${top + (topOffset * scale)}px`,
+                        width: `${containerWidth}px`,
+                        height: `${containerHeight}px`,
+                        zIndex: "5",
+                        pointerEvents: "auto"
+                    });
                 },
                 computeSize: function(width) {
                     return [width, 600];  // Fixed height for viewer
@@ -140,8 +148,8 @@ function registerVisualizer(nodeType, nodeData, nodeName, typeName) {
 
             widget.visualizer = visualizer;
 
-            // Create iframe
-            visualizer.iframe = visualizer.createIframe();
+            // Create container with iframe
+            visualizer.container = visualizer.createContainer();
             this.visualizer = visualizer;
 
             return result;
@@ -149,8 +157,8 @@ function registerVisualizer(nodeType, nodeData, nodeName, typeName) {
 
         const onRemoved = nodeType.prototype.onRemoved;
         nodeType.prototype.onRemoved = function () {
-            if (this.visualizer?.iframe) {
-                this.visualizer.iframe.remove();
+            if (this.visualizer?.container) {
+                this.visualizer.container.remove();
             }
             return onRemoved?.apply(this, arguments);
         };

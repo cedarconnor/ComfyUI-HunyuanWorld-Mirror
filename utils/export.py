@@ -213,7 +213,8 @@ class ExportUtils:
         colors: np.ndarray,
         opacities: np.ndarray,
         sh: Optional[np.ndarray] = None,
-        filter_scale_percentile: float = 95.0
+        filter_scale_percentile: float = 95.0,
+        normalize_colors: bool = True
     ) -> str:
         """
         Save 3D Gaussians in standard 3DGS PLY format with outlier filtering.
@@ -227,6 +228,7 @@ class ExportUtils:
             opacities: Opacity values [N, 1] or [N]
             sh: Spherical harmonics [N, SH_COEFFS, 3] (optional)
             filter_scale_percentile: Filter Gaussians with scales > this percentile (0-100, default 95)
+            normalize_colors: Apply percentile-based color normalization to reduce high contrast (default True)
 
         Returns:
             filepath: Path to saved file
@@ -288,6 +290,25 @@ class ExportUtils:
             print(f"  Scale filtering: {filter_mask.sum()}/{num_before} Gaussians below {filter_scale_percentile}th percentile")
 
         num_gaussians = len(means)
+
+        # Normalize colors to reduce high contrast if requested
+        if normalize_colors:
+            # Use percentile-based normalization to handle outliers
+            # This spreads the color distribution more evenly across [0, 1]
+            for c in range(3):  # For each RGB channel
+                channel = colors[:, c]
+                p_low = np.percentile(channel, 2)  # 2nd percentile
+                p_high = np.percentile(channel, 98)  # 98th percentile
+
+                if p_high - p_low > 1e-6:  # Avoid division by zero
+                    # Normalize to [0, 1] based on percentiles
+                    channel_normalized = (channel - p_low) / (p_high - p_low)
+                    colors[:, c] = np.clip(channel_normalized, 0, 1)
+                else:
+                    # If all values are similar, just clip
+                    colors[:, c] = np.clip(channel, 0, 1)
+
+            print(f"  Color normalization applied (2nd-98th percentile mapping)")
 
         # Reshape opacities to 2D for PLY export (already filtered and flattened)
         opacities = opacities.reshape(-1, 1)

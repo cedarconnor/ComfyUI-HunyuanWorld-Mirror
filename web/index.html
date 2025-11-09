@@ -23,6 +23,11 @@
             </label>
             <br>
             <label>
+                Decimation: <input type="range" id="decimation" min="1" max="20" step="1" value="1">
+                <span id="decimationValue">1x (all points)</span>
+            </label>
+            <br>
+            <label>
                 <input type="checkbox" id="autoRotate"> Auto Rotate
             </label>
         </div>
@@ -105,6 +110,7 @@
         // Global reference to points material for controls
         let pointsMaterial = null;
         let pointsObject = null;
+        let originalGeometry = null;  // Store original geometry for decimation
 
         // Load PLY file
         const loader = new PLYLoader();
@@ -188,6 +194,9 @@
                     console.warn('No color attributes found in PLY file, using default blue color');
                 }
 
+                // Store original geometry for decimation
+                originalGeometry = geometry.clone();
+
                 // Create points
                 pointsObject = new THREE.Points(geometry, pointsMaterial);
                 scene.add(pointsObject);
@@ -249,6 +258,60 @@
                 pointsMaterial.needsUpdate = true;
             }
             document.getElementById('pointSizeValue').textContent = value.toFixed(4);
+        });
+
+        // Decimation control
+        document.getElementById('decimation').addEventListener('input', (e) => {
+            const factor = parseInt(e.target.value);
+
+            if (!originalGeometry || !pointsObject) {
+                return;
+            }
+
+            // Update label
+            const totalPoints = originalGeometry.attributes.position.count;
+            const keptPoints = Math.floor(totalPoints / factor);
+            document.getElementById('decimationValue').textContent =
+                factor === 1 ? '1x (all points)' : `${factor}x (~${(keptPoints / 1000000).toFixed(1)}M points)`;
+
+            // Create decimated geometry
+            const positions = originalGeometry.attributes.position.array;
+            const colors = originalGeometry.attributes.color ? originalGeometry.attributes.color.array : null;
+            const normals = originalGeometry.attributes.normal ? originalGeometry.attributes.normal.array : null;
+
+            const decimatedPositions = [];
+            const decimatedColors = colors ? [] : null;
+            const decimatedNormals = normals ? [] : null;
+
+            // Keep every Nth point
+            for (let i = 0; i < positions.length / 3; i++) {
+                if (i % factor === 0) {
+                    decimatedPositions.push(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
+                    if (colors) {
+                        decimatedColors.push(colors[i * 3], colors[i * 3 + 1], colors[i * 3 + 2]);
+                    }
+                    if (normals) {
+                        decimatedNormals.push(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]);
+                    }
+                }
+            }
+
+            // Create new geometry with decimated data
+            const newGeometry = new THREE.BufferGeometry();
+            newGeometry.setAttribute('position', new THREE.Float32BufferAttribute(decimatedPositions, 3));
+            if (decimatedColors) {
+                newGeometry.setAttribute('color', new THREE.Float32BufferAttribute(decimatedColors, 3));
+            }
+            if (decimatedNormals) {
+                newGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(decimatedNormals, 3));
+            }
+
+            // Replace geometry in points object
+            const oldGeometry = pointsObject.geometry;
+            pointsObject.geometry = newGeometry;
+            oldGeometry.dispose(); // Free memory
+
+            console.log(`Decimated: ${totalPoints.toLocaleString()} → ${decimatedPositions.length / 3}  (${factor}x)`);
         });
 
         // Auto-rotate control

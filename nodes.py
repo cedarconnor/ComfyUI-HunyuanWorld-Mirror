@@ -694,6 +694,13 @@ class SavePointCloud:
                     "step": 1.0,
                     "tooltip": "Filter out low-confidence points. 0=keep all points, 50=keep top 50%, 95=keep only very confident points. Higher values remove more noise but may lose details."
                 }),
+                "subsample_factor": ("INT", {
+                    "default": 1,
+                    "min": 1,
+                    "max": 100,
+                    "step": 1,
+                    "tooltip": "Reduce point count by keeping every Nth point. 1=keep all, 2=keep half, 4=keep quarter. Useful for reducing file size and improving viewer performance with large point clouds (10M+ points)."
+                }),
             },
             "optional": {
                 "colors": ("IMAGE", {
@@ -720,11 +727,12 @@ class SavePointCloud:
         filepath: str,
         format: str,
         confidence_threshold: float,
+        subsample_factor: int,
         colors: Optional[torch.Tensor] = None,
         normals: Optional[torch.Tensor] = None,
         confidence: Optional[torch.Tensor] = None
     ) -> Tuple[str]:
-        """Save point cloud to file with optional confidence filtering."""
+        """Save point cloud to file with optional confidence filtering and subsampling."""
 
         # Check if 3D points are available
         if points3d is None:
@@ -821,6 +829,32 @@ class SavePointCloud:
                 normals_torch = normals_torch.permute(0, 2, 3, 1)
                 normals_np = normals_torch.numpy()
 
+        # Apply subsampling if requested
+        if subsample_factor > 1:
+            # Flatten all arrays to 1D list of points
+            points_flat = points_np.reshape(-1, 3)
+            num_original = len(points_flat)
+
+            # Create subsample mask
+            subsample_mask = np.arange(num_original) % subsample_factor == 0
+
+            # Apply to all arrays
+            points_np = points_flat[subsample_mask].reshape(-1, 3)
+
+            if colors_np is not None:
+                colors_flat = colors_np.reshape(-1, 3)
+                colors_np = colors_flat[subsample_mask].reshape(-1, 3)
+
+            if normals_np is not None:
+                normals_flat = normals_np.reshape(-1, 3)
+                normals_np = normals_flat[subsample_mask].reshape(-1, 3)
+
+            if confidence_np is not None:
+                confidence_flat = confidence_np.reshape(-1)
+                confidence_np = confidence_flat[subsample_mask].reshape(-1)
+
+            print(f"  Subsampling: {subsample_mask.sum()}/{num_original} points (factor={subsample_factor})")
+
         # Ensure file extension matches format
         if not filepath.endswith(f'.{format}'):
             filepath = filepath.rsplit('.', 1)[0] + f'.{format}'
@@ -879,6 +913,17 @@ class Save3DGaussians:
                     "step": 1.0,
                     "tooltip": "Remove Gaussians with unusually large scales (outliers/artifacts). 95=keep 95% of Gaussians, 90=more aggressive filtering. 0=disable filtering, 100=keep all."
                 }),
+                "normalize_colors": ("BOOLEAN", {
+                    "default": True,
+                    "tooltip": "Apply percentile-based color normalization to reduce high contrast artifacts. Recommended: True for better color appearance in viewers."
+                }),
+                "subsample_factor": ("INT", {
+                    "default": 1,
+                    "min": 1,
+                    "max": 100,
+                    "step": 1,
+                    "tooltip": "Reduce Gaussian count by keeping every Nth Gaussian. 1=keep all, 2=keep half, 4=keep quarter. Higher values create smaller files and faster viewer performance."
+                }),
             },
         }
 
@@ -893,9 +938,11 @@ class Save3DGaussians:
         gaussians: Dict[str, torch.Tensor],
         filepath: str,
         include_sh: bool,
-        filter_scale_percentile: float
+        filter_scale_percentile: float,
+        normalize_colors: bool,
+        subsample_factor: int
     ) -> Tuple[str]:
-        """Save Gaussian parameters to PLY file with outlier filtering."""
+        """Save Gaussian parameters to PLY file with outlier filtering and optional subsampling."""
 
         # Check if gaussians are available
         if gaussians is None or gaussians.get('means') is None:
@@ -920,14 +967,28 @@ class Save3DGaussians:
         if include_sh and 'sh' in gaussians:
             sh = tensor_to_numpy(gaussians['sh'])
 
+        # Apply subsampling if requested
+        if subsample_factor > 1:
+            num_original = len(means)
+            subsample_mask = np.arange(num_original) % subsample_factor == 0
+            means = means[subsample_mask]
+            scales = scales[subsample_mask]
+            quats = quats[subsample_mask]
+            colors = colors[subsample_mask]
+            opacities = opacities[subsample_mask]
+            if sh is not None:
+                sh = sh[subsample_mask]
+            print(f"  Subsampling: {subsample_mask.sum()}/{num_original} Gaussians (factor={subsample_factor})")
+
         # Ensure .ply extension
         if not filepath.endswith('.ply'):
             filepath = filepath.rsplit('.', 1)[0] + '.ply'
 
-        # Save with scale filtering
+        # Save with scale filtering and color normalization
         saved_path = ExportUtils.save_gaussian_ply(
             filepath, means, scales, quats, colors, opacities, sh,
-            filter_scale_percentile=filter_scale_percentile
+            filter_scale_percentile=filter_scale_percentile,
+            normalize_colors=normalize_colors
         )
 
         return (saved_path,)

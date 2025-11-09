@@ -30,10 +30,7 @@ function initRenderer() {
         scene = new SPLAT.Scene();
         camera = new SPLAT.Camera();
 
-        // Set initial camera position
-        camera.position.set(0, 0, 5);
-
-        // Setup controls
+        // Setup controls (camera position managed by controls)
         controls = new SPLAT.OrbitControls(camera, canvas);
         controls.orbitSpeed = 1.5;
         controls.panSpeed = 0.8;

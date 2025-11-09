@@ -154,6 +154,10 @@ async function loadPointCloud(filepath) {
 
                 // Create point cloud
                 pointCloud = new THREE.Points(geometry, material);
+
+                // Fix coordinate system - flip Y axis to match expected orientation
+                pointCloud.scale.set(1, -1, 1);
+
                 scene.add(pointCloud);
 
                 // Center and fit to view

@@ -125,6 +125,17 @@
                     geometry.computeVertexNormals();
                 }
 
+                // Check for color attributes
+                // PLY files can have 'color', 'red/green/blue', or no colors
+                let hasColors = false;
+                if (geometry.attributes.color) {
+                    hasColors = true;
+                } else {
+                    // PLYLoader might store colors differently, check for RGB components
+                    // Some PLY files store as separate red/green/blue attributes
+                    console.log('Geometry attributes:', Object.keys(geometry.attributes));
+                }
+
                 // Center geometry
                 geometry.computeBoundingBox();
                 const center = new THREE.Vector3();
@@ -142,7 +153,7 @@
                 // Create material based on mode
                 pointsMaterial = new THREE.PointsMaterial({
                     size: basePointSize,
-                    vertexColors: geometry.attributes.color ? true : false,
+                    vertexColors: hasColors,
                     sizeAttenuation: true,
                     transparent: mode === 'splat',
                     opacity: mode === 'splat' ? 0.8 : 1.0,
@@ -150,8 +161,9 @@
                 });
 
                 // If no vertex colors, use a default color
-                if (!geometry.attributes.color) {
+                if (!hasColors) {
                     pointsMaterial.color = new THREE.Color(0x00aaff);
+                    console.warn('No color attributes found in PLY file, using default blue color');
                 }
 
                 // Create points
@@ -160,15 +172,15 @@
 
                 // Update file info
                 const vertexCount = geometry.attributes.position.count;
-                const hasColors = geometry.attributes.color ? 'Yes' : 'No';
-                const hasNormals = geometry.attributes.normal ? 'Yes' : 'No';
+                const hasColorsText = hasColors ? 'Yes' : 'No';
+                const hasNormalsText = geometry.attributes.normal ? 'Yes' : 'No';
 
                 fileInfoDiv.innerHTML = `
                     <strong>File:</strong> ${filePath.split('/').pop()}<br>
                     <strong>Mode:</strong> ${mode}<br>
                     <strong>Points:</strong> ${vertexCount.toLocaleString()}<br>
-                    <strong>Colors:</strong> ${hasColors}<br>
-                    <strong>Normals:</strong> ${hasNormals}<br>
+                    <strong>Colors:</strong> ${hasColorsText}<br>
+                    <strong>Normals:</strong> ${hasNormalsText}<br>
                     <strong>Size:</strong> ${maxDim.toFixed(2)} units
                 `;
 

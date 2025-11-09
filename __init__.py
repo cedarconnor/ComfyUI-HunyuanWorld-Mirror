@@ -18,6 +18,7 @@ if str(current_dir) not in sys.path:
 from .nodes import (
     NODE_CLASS_MAPPINGS,
     NODE_DISPLAY_NAME_MAPPINGS,
+    WEB_DIRECTORY,
 )
 
 # Version info
@@ -29,6 +30,7 @@ __license__ = "Apache-2.0"
 __all__ = [
     "NODE_CLASS_MAPPINGS",
     "NODE_DISPLAY_NAME_MAPPINGS",
+    "WEB_DIRECTORY",
 ]
 
 # Print welcome message

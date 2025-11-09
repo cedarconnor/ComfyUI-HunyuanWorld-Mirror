@@ -405,13 +405,19 @@ class ExportUtils:
 
         Args:
             filepath: Output path (.json)
-            poses: Camera-to-world matrices [N, 4, 4]
-            intrinsics: Intrinsic matrices [N, 3, 3]
+            poses: Camera-to-world matrices [N, 4, 4] or [1, N, 4, 4]
+            intrinsics: Intrinsic matrices [N, 3, 3] or [1, N, 3, 3]
 
         Returns:
             filepath: Path to saved file
         """
         Path(filepath).parent.mkdir(parents=True, exist_ok=True)
+
+        # Squeeze batch dimension if present
+        if poses.ndim == 4:  # [1, N, 4, 4]
+            poses = poses.squeeze(0)
+        if intrinsics is not None and intrinsics.ndim == 4:  # [1, N, 3, 3]
+            intrinsics = intrinsics.squeeze(0)
 
         cameras = []
         for i in range(len(poses)):
@@ -423,13 +429,14 @@ class ExportUtils:
             # Only add intrinsics if available
             if intrinsics is not None:
                 camera['intrinsics'] = intrinsics[i].tolist()
+                # Use .item() to extract scalar from numpy array
                 camera['focal_length'] = [
-                    float(intrinsics[i, 0, 0]),
-                    float(intrinsics[i, 1, 1])
+                    intrinsics[i, 0, 0].item(),
+                    intrinsics[i, 1, 1].item()
                 ]
                 camera['principal_point'] = [
-                    float(intrinsics[i, 0, 2]),
-                    float(intrinsics[i, 1, 2])
+                    intrinsics[i, 0, 2].item(),
+                    intrinsics[i, 1, 2].item()
                 ]
 
             cameras.append(camera)
@@ -458,14 +465,20 @@ class ExportUtils:
 
         Args:
             filepath: Base output path (without extension)
-            poses: Camera poses [N, 4, 4]
-            intrinsics: Intrinsics [N, 3, 3]
+            poses: Camera poses [N, 4, 4] or [1, N, 4, 4]
+            intrinsics: Intrinsics [N, 3, 3] or [1, N, 3, 3]
 
         Returns:
             filepath: Base path used
         """
         base_path = Path(filepath).with_suffix('')
         base_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Squeeze batch dimension if present
+        if poses.ndim == 4:  # [1, N, 4, 4]
+            poses = poses.squeeze(0)
+        if intrinsics is not None and intrinsics.ndim == 4:  # [1, N, 3, 3]
+            intrinsics = intrinsics.squeeze(0)
 
         poses_path = f"{base_path}_poses.npy"
         intrinsics_path = f"{base_path}_intrinsics.npy"

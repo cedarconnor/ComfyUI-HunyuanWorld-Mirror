@@ -19,6 +19,18 @@ let animationId = null;
 // Initialize Three.js scene
 function initScene() {
     try {
+        // Check if Three.js library loaded
+        if (typeof THREE === 'undefined') {
+            throw new Error("Three.js library not loaded. Check network connection and CDN availability.");
+        }
+
+        // Check WebGL support
+        const testCanvas = document.createElement('canvas');
+        const gl = testCanvas.getContext('webgl2') || testCanvas.getContext('webgl');
+        if (!gl) {
+            throw new Error("WebGL not supported in this browser.");
+        }
+
         // Scene
         scene = new THREE.Scene();
         scene.background = new THREE.Color(0x1a1a1a);
@@ -62,10 +74,14 @@ function initScene() {
         // Handle window resize
         window.addEventListener('resize', onWindowResize);
 
-        console.log("[PointCloudViewer] Scene initialized");
+        console.log("[PointCloudViewer] Scene initialized successfully");
+
+        // Hide loading initially
+        loading.style.display = 'none';
+
     } catch (error) {
         console.error("[PointCloudViewer] Failed to initialize scene:", error);
-        showError("Failed to initialize 3D renderer. Your browser may not support WebGL.");
+        showError(`Failed to initialize 3D renderer:\n${error.message}`);
     }
 }
 
@@ -79,6 +95,11 @@ function onWindowResize() {
 }
 
 async function loadPointCloud(filepath) {
+    if (!renderer || !scene) {
+        console.warn("[PointCloudViewer] Scene not initialized, skipping load");
+        return;
+    }
+
     loading.style.display = 'block';
     errorDiv.style.display = 'none';
     infoDiv.style.display = 'none';
@@ -91,6 +112,7 @@ async function loadPointCloud(filepath) {
         const fileURL = `${url}/viewfile?${params}`;
 
         console.log("[PointCloudViewer] Loading:", fileURL);
+        console.log("[PointCloudViewer] Full filepath:", filepath);
 
         // Remove previous point cloud
         if (pointCloud) {
@@ -105,9 +127,14 @@ async function loadPointCloud(filepath) {
         // Load PLY file
         const loader = new PLYLoader();
 
+        const timeout = setTimeout(() => {
+            console.warn("[PointCloudViewer] Loading timeout - request taking too long");
+        }, 30000);  // 30 second timeout warning
+
         loader.load(
             fileURL,
             (geometry) => {
+                clearTimeout(timeout);
                 console.log("[PointCloudViewer] Loaded successfully");
 
                 // Create point cloud material
@@ -145,19 +172,30 @@ async function loadPointCloud(filepath) {
             (progress) => {
                 if (progress.lengthComputable) {
                     const percent = (progress.loaded / progress.total) * 100;
-                    loading.textContent = `Loading... ${Math.round(percent)}%`;
+                    loading.innerHTML = `<div class="spinner"></div><div>Loading... ${Math.round(percent)}%</div>`;
+                    console.log(`[PointCloudViewer] Progress: ${percent}%`);
                 }
             },
             (error) => {
+                clearTimeout(timeout);
                 console.error("[PointCloudViewer] Load error:", error);
-                showError(`Failed to load point cloud file:\n${error.message}`);
+                console.error("[PointCloudViewer] Error details:", {
+                    message: error.message,
+                    filepath: filepath
+                });
+                showError(`Failed to load point cloud file:\n${error.message}\n\nCheck browser console for details.`);
                 loading.style.display = 'none';
             }
         );
 
     } catch (error) {
         console.error("[PointCloudViewer] Failed to load file:", error);
-        showError(`Failed to load point cloud file:\n${error.message}`);
+        console.error("[PointCloudViewer] Error details:", {
+            message: error.message,
+            stack: error.stack,
+            filepath: filepath
+        });
+        showError(`Failed to load point cloud file:\n${error.message}\n\nCheck browser console for details.`);
         loading.style.display = 'none';
     }
 }

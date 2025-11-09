@@ -14,6 +14,18 @@ let animationId = null;
 // Initialize renderer
 function initRenderer() {
     try {
+        // Check if gsplat library loaded
+        if (typeof SPLAT === 'undefined') {
+            throw new Error("gsplat library not loaded. Check network connection and CDN availability.");
+        }
+
+        // Check WebGL support
+        const testCanvas = document.createElement('canvas');
+        const gl = testCanvas.getContext('webgl2') || testCanvas.getContext('webgl');
+        if (!gl) {
+            throw new Error("WebGL not supported in this browser.");
+        }
+
         renderer = new SPLAT.WebGLRenderer(canvas);
         scene = new SPLAT.Scene();
         camera = new SPLAT.Camera();
@@ -32,10 +44,14 @@ function initRenderer() {
         window.addEventListener('resize', onWindowResize);
         onWindowResize();
 
-        console.log("[GSViewer] Renderer initialized");
+        console.log("[GSViewer] Renderer initialized successfully");
+
+        // Hide loading initially
+        loading.style.display = 'none';
+
     } catch (error) {
         console.error("[GSViewer] Failed to initialize renderer:", error);
-        showError("Failed to initialize WebGL renderer. Your browser may not support WebGL.");
+        showError(`Failed to initialize WebGL renderer:\n${error.message}`);
     }
 }
 
@@ -49,6 +65,11 @@ function onWindowResize() {
 }
 
 async function loadGaussianSplats(filepath) {
+    if (!renderer || !scene) {
+        console.warn("[GSViewer] Renderer not initialized, skipping load");
+        return;
+    }
+
     loading.style.display = 'block';
     errorDiv.style.display = 'none';
     infoDiv.style.display = 'none';
@@ -60,16 +81,25 @@ async function loadGaussianSplats(filepath) {
         const fileURL = `${url}/viewfile?${params}`;
 
         console.log("[GSViewer] Loading:", fileURL);
+        console.log("[GSViewer] Full filepath:", filepath);
 
         // Clear previous scene
         scene.reset();
 
         // Load PLY file
         const onProgress = (progress) => {
-            loading.textContent = `Loading... ${Math.round(progress * 100)}%`;
+            const percent = Math.round(progress * 100);
+            loading.innerHTML = `<div class="spinner"></div><div>Loading... ${percent}%</div>`;
+            console.log(`[GSViewer] Progress: ${percent}%`);
         };
 
+        const timeout = setTimeout(() => {
+            console.warn("[GSViewer] Loading timeout - request taking too long");
+        }, 30000);  // 30 second timeout warning
+
         await SPLAT.PLYLoader.LoadAsync(fileURL, scene, onProgress);
+
+        clearTimeout(timeout);
 
         console.log("[GSViewer] Loaded successfully. Splat count:", scene.splatCount);
 
@@ -81,7 +111,12 @@ async function loadGaussianSplats(filepath) {
 
     } catch (error) {
         console.error("[GSViewer] Failed to load file:", error);
-        showError(`Failed to load Gaussian Splatting file:\n${error.message}`);
+        console.error("[GSViewer] Error details:", {
+            message: error.message,
+            stack: error.stack,
+            filepath: filepath
+        });
+        showError(`Failed to load Gaussian Splatting file:\n${error.message}\n\nCheck browser console for details.`);
         loading.style.display = 'none';
     }
 }

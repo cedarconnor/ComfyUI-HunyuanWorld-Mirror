@@ -434,6 +434,58 @@ class ExportUtils:
             return ExportUtils.save_depth_npy(filepath.replace('.exr', '.npy'), depth)
 
     @staticmethod
+    def save_depth_pfm(filepath: str, depth: np.ndarray) -> str:
+        """
+        Save depth map as PFM (Portable Float Map) file.
+
+        PFM is a simple format for storing floating-point images, commonly used
+        for depth maps and HDR data in computer vision and graphics.
+
+        Args:
+            filepath: Output path (.pfm)
+            depth: Depth array (H, W) or (B, H, W) - will use first frame if batched
+        """
+        import struct
+        import sys
+
+        Path(filepath).parent.mkdir(parents=True, exist_ok=True)
+
+        # Handle batch dimension
+        if len(depth.shape) == 3:
+            depth = depth[0]  # Take first frame
+        elif len(depth.shape) == 4:
+            depth = depth[0, 0]  # Take first batch, first frame
+
+        # Ensure 2D
+        if len(depth.shape) != 2:
+            raise ValueError(f"Expected 2D depth map, got shape {depth.shape}")
+
+        height, width = depth.shape
+        depth_float = depth.astype(np.float32)
+
+        # PFM header format:
+        # Pf\n (grayscale) or PF\n (color)
+        # width height\n
+        # scale\n (negative = little-endian, positive = big-endian)
+
+        # Determine endianness
+        scale = -1.0 if sys.byteorder == 'little' else 1.0
+
+        # Write PFM file
+        with open(filepath, 'wb') as f:
+            # Write header
+            f.write(b'Pf\n')  # Grayscale float
+            f.write(f'{width} {height}\n'.encode('ascii'))
+            f.write(f'{scale}\n'.encode('ascii'))
+
+            # Write data (bottom-to-top scanline order for PFM)
+            depth_flipped = np.flipud(depth_float)
+            f.write(depth_flipped.tobytes())
+
+        print(f"✓ Saved depth map (PFM): {filepath}")
+        return filepath
+
+    @staticmethod
     def save_depth_png16(filepath: str, depth: np.ndarray, scale_factor: float = 1000.0) -> str:
         """
         Save depth map as 16-bit PNG.

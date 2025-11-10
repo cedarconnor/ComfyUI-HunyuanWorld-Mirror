@@ -13,7 +13,7 @@ Transform 2D images into 3D worlds using Tencent's HunyuanWorld-Mirror model dir
 - **🎯 Single-Pass 3D Reconstruction** - Generate point clouds, depth maps, normals, camera parameters, and 3D Gaussians in one forward pass
 - **🎨 11 Essential Nodes** - Complete pipeline from preprocessing to export and visualization
 - **🔧 ComfyUI Native** - Seamless integration with existing image workflows
-- **📦 Multiple Export Formats** - PLY, OBJ, XYZ for point clouds; NPY, EXR, PFM for depth; JSON, COLMAP for cameras
+- **📦 Multiple Export Formats** - PLY, OBJ, XYZ for point clouds; NPY, EXR, PFM, PNG16 for depth; JSON, COLMAP for cameras
 - **✨ 3D Gaussian Splatting** - Export to standard 3DGS format compatible with SuperSplat, gsplat viewers
 - **🌐 Interactive 3D Viewer** - View point clouds and Gaussian splats directly in your browser with WebGL
 - **💾 Memory Efficient** - Automatic batch processing handles sequences of any length

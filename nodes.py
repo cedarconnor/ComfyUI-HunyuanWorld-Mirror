@@ -961,8 +961,23 @@ class Save3DGaussians:
         means = tensor_to_numpy(gaussians['means'])
         scales = tensor_to_numpy(gaussians['scales'])
         quats = tensor_to_numpy(gaussians['quats'])
-        colors = tensor_to_numpy(gaussians['colors'])
         opacities = tensor_to_numpy(gaussians['opacities'])
+
+        # Handle colors: extract from SH DC term if colors is None
+        colors = gaussians.get('colors', None)
+        if colors is None:
+            # Try to extract from SH DC term
+            sh_tensor = gaussians.get('sh', None)
+            if sh_tensor is not None:
+                sh_numpy = tensor_to_numpy(sh_tensor)
+                # Extract first 3 coefficients (DC term) as RGB
+                if sh_numpy is not None and sh_numpy.shape[-1] >= 3:
+                    colors = sh_numpy[..., :3] if len(sh_numpy.shape) > 2 else sh_numpy[:, :3]
+                    print(f"  Extracted RGB colors from SH DC term")
+
+        # Convert colors to numpy if it's still a tensor
+        if colors is not None and not isinstance(colors, np.ndarray):
+            colors = tensor_to_numpy(colors)
 
         sh = None
         if include_sh and 'sh' in gaussians:
@@ -1015,11 +1030,11 @@ class SaveDepthMap:
                 "filepath": ("STRING", {
                     "default": "./output/depth.npy",
                     "multiline": False,
-                    "tooltip": "Where to save the depth data. File extension will auto-adjust to match the selected format (e.g., depth.npy, depth.exr, depth.png)."
+                    "tooltip": "Where to save the depth data. File extension will auto-adjust to match the selected format (e.g., depth.npy, depth.exr, depth.pfm, depth.png)."
                 }),
-                "format": (["npy", "exr", "png16"], {
+                "format": (["npy", "exr", "pfm", "png16"], {
                     "default": "npy",
-                    "tooltip": "File format for depth data. NPY is NumPy binary (full precision, Python-friendly). EXR is OpenEXR (high dynamic range, used in VFX). PNG16 is 16-bit PNG (good compatibility)."
+                    "tooltip": "File format for depth data. NPY is NumPy binary (full precision, Python-friendly). EXR is OpenEXR (high dynamic range, used in VFX). PFM is Portable Float Map (standard float format). PNG16 is 16-bit PNG (good compatibility)."
                 }),
             },
         }
@@ -1050,6 +1065,8 @@ class SaveDepthMap:
             saved_path = ExportUtils.save_depth_npy(filepath, depth_np)
         elif format == "exr":
             saved_path = ExportUtils.save_depth_exr(filepath, depth_np)
+        elif format == "pfm":
+            saved_path = ExportUtils.save_depth_pfm(filepath, depth_np)
         elif format == "png16":
             saved_path = ExportUtils.save_depth_png16(filepath, depth_np)
         else:

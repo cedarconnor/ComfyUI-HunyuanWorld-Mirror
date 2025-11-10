@@ -345,8 +345,15 @@ class ExportUtils:
         if sh is not None:
             # Flatten SH coefficients
             sh_flat = sh.reshape(num_gaussians, -1).astype(np.float32)
-            for i in range(sh_flat.shape[1]):
-                vertex_data.append((f'f_dc_{i}', sh_flat[:, i]))
+            # First 3 coefficients are DC term (f_dc_0, f_dc_1, f_dc_2)
+            vertex_data.extend([
+                ('f_dc_0', sh_flat[:, 0]),
+                ('f_dc_1', sh_flat[:, 1]),
+                ('f_dc_2', sh_flat[:, 2]),
+            ])
+            # Remaining coefficients are higher-order terms (f_rest_0, f_rest_1, ...)
+            for i in range(3, sh_flat.shape[1]):
+                vertex_data.append((f'f_rest_{i-3}', sh_flat[:, i]))
         else:
             # Simple RGB colors in 3DGS format (normalized [0,1])
             vertex_data.extend([

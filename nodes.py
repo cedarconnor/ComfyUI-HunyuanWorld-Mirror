@@ -355,6 +355,7 @@ class HWMInference:
             all_gaussian_scales = []
             all_gaussian_quats = []
             all_gaussian_colors = []
+            all_gaussian_sh = []
             all_gaussian_opacities = []
 
             for batch_idx in range(num_batches):
@@ -438,14 +439,14 @@ class HWMInference:
                     if opacities is not None:
                         all_gaussian_opacities.append(opacities)
 
-                    # Extract colors - prefer 'sh' (spherical harmonics) over 'colors'
+                    # Extract colors and spherical harmonics separately
                     sh = extract_param('sh')
                     if sh is not None:
-                        all_gaussian_colors.append(sh)
-                    else:
-                        colors = extract_param('colors')
-                        if colors is not None:
-                            all_gaussian_colors.append(colors)
+                        all_gaussian_sh.append(sh)
+
+                    colors = extract_param('colors')
+                    if colors is not None:
+                        all_gaussian_colors.append(colors)
 
                 # Clear batch memory
                 if num_batches > 1:
@@ -503,7 +504,7 @@ class HWMInference:
                 'quats': concat_tensors(all_gaussian_quats),
                 'colors': concat_tensors(all_gaussian_colors),
                 'opacities': concat_tensors(all_gaussian_opacities),
-                'sh': concat_tensors(all_gaussian_colors),  # sh and colors are the same
+                'sh': concat_tensors(all_gaussian_sh) if len(all_gaussian_sh) > 0 else None,
             }
 
             # Log Gaussian availability

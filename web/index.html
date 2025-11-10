@@ -14,7 +14,8 @@
             <strong>Controls:</strong><br>
             • Left-click + drag: Rotate<br>
             • Right-click + drag: Pan<br>
-            • Scroll: Zoom
+            • Scroll: Zoom<br>
+            • Press F: Flip 180°
         </div>
         <div id="settings">
             <label>
@@ -35,6 +36,8 @@
             <label>
                 <input type="checkbox" id="autoRotate"> Auto Rotate
             </label>
+            <br>
+            <button id="flip180" style="margin-top: 10px; padding: 5px 10px; cursor: pointer;">Flip 180°</button>
         </div>
     </div>
 
@@ -372,6 +375,14 @@
             controls.autoRotateSpeed = 2.0;
         });
 
+        // Flip 180 degrees button
+        document.getElementById('flip180').addEventListener('click', () => {
+            if (pointsObject) {
+                pointsObject.rotation.y += Math.PI;
+                console.log('Flipped 180 degrees');
+            }
+        });
+
         // Window resize handler
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
@@ -399,6 +410,12 @@
                 case 'r':
                     controls.reset();
                     break;
+                case 'f':
+                    if (pointsObject) {
+                        pointsObject.rotation.y += Math.PI;
+                        console.log('Flipped 180 degrees');
+                    }
+                    break;
                 case 'h':
                     document.getElementById('info').style.display =
                         document.getElementById('info').style.display === 'none' ? 'block' : 'none';
@@ -407,7 +424,7 @@
         });
 
         console.log('ComfyUI 3D Viewer initialized');
-        console.log('Keyboard shortcuts: G=toggle grid, A=toggle axes, R=reset view, H=toggle UI');
+        console.log('Keyboard shortcuts: G=toggle grid, A=toggle axes, F=flip 180°, R=reset view, H=toggle UI');
     </script>
 </body>
 </html>

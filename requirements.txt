@@ -32,6 +32,7 @@ safetensors>=0.4.0
 trimesh>=4.0.0
 plyfile>=1.0.0
 open3d>=0.18.0
+pycolmap>=0.6.0
 
 # Visualization
 matplotlib>=3.7.0

@@ -6,8 +6,6 @@ Transform 2D images into 3D worlds using Tencent's HunyuanWorld-Mirror model dir
 [![Python](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/)
 [![CUDA](https://img.shields.io/badge/CUDA-12.x-green.svg)](https://developer.nvidia.com/cuda-downloads)
 
-![HunyuanWorld-Mirror Demo](docs/demo.gif)
-
 ---
 
 ## ✨ Features

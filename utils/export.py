@@ -251,7 +251,6 @@ class ExportUtils:
         means = means.reshape(-1, 3).astype(np.float32)
         scales = scales.reshape(-1, 3).astype(np.float32)
         quats = quats.reshape(-1, 4).astype(np.float32)
-        colors = colors.reshape(-1, 3).astype(np.float32)
         opacities = opacities.reshape(-1).astype(np.float32)  # Flatten to 1D for filtering
 
         # Reshape sh if provided (before filtering)
@@ -269,6 +268,17 @@ class ExportUtils:
                 # Already 1D or wrong shape, skip sh
                 print(f"  Warning: Unexpected sh shape {original_shape}, skipping spherical harmonics")
                 sh = None
+
+        # Handle colors: if None but SH exists, extract DC term from SH
+        if colors is None:
+            if sh is not None and sh.shape[1] >= 3:
+                # Extract first 3 SH coefficients (DC term) as base colors
+                colors = sh[:, :3].astype(np.float32)
+                print(f"  Extracted base colors from SH DC term")
+            else:
+                raise ValueError("Both colors and SH are None or invalid - cannot export Gaussians without appearance data")
+        else:
+            colors = colors.reshape(-1, 3).astype(np.float32)
 
         # Filter out Gaussians with large scales (outliers) - IMPROVEMENT FROM OFFICIAL REPO
         if filter_scale_percentile > 0 and filter_scale_percentile < 100:

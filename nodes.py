@@ -1395,12 +1395,38 @@ class View3DInBrowser:
             print("  Skipping viewer launch.")
             return ("",)
 
-        # Auto-detect mode from file extension if set to auto
+        # Auto-detect mode from file content if set to auto
         if mode == "auto":
             if file_path.lower().endswith('.splat'):
                 mode = "splat"
+            elif file_path.lower().endswith('.ply'):
+                # Check PLY header for Gaussian attributes
+                try:
+                    with open(file_path, 'rb') as f:
+                        # Read PLY header (ASCII until 'end_header')
+                        header = []
+                        for _ in range(100):  # Limit header reading
+                            line = f.readline().decode('ascii', errors='ignore').strip()
+                            header.append(line)
+                            if line == 'end_header':
+                                break
+
+                        header_text = ' '.join(header)
+                        # Check for Gaussian-specific attributes
+                        has_scale = 'scale_0' in header_text
+                        has_rotation = 'rot_0' in header_text or 'rotation' in header_text
+                        has_opacity = 'opacity' in header_text
+
+                        if has_scale and has_rotation:
+                            mode = "splat"
+                            print(f"  Detected Gaussian splat attributes in PLY")
+                        else:
+                            mode = "pointcloud"
+                except Exception as e:
+                    print(f"  Warning: Could not read PLY header, defaulting to pointcloud mode: {e}")
+                    mode = "pointcloud"
             else:
-                # Default to pointcloud for .ply files
+                # Default to pointcloud for other files
                 mode = "pointcloud"
 
         print("\n" + "=" * 70)

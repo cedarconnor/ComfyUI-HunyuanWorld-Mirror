@@ -149,12 +149,18 @@
                     geometry.computeVertexNormals();
                 }
 
+                // Debug: Log all available attributes
+                console.log('PLY Attributes:', Object.keys(geometry.attributes));
+                console.log('Mode:', mode);
+
                 // Check if this is a Gaussian splat file
-                const isGaussianSplat = mode === 'splat' && (
-                    geometry.attributes.scale_0 &&
-                    geometry.attributes.rot_0 &&
-                    geometry.attributes.opacity
-                );
+                const hasScale = geometry.attributes.scale_0 !== undefined;
+                const hasRot = geometry.attributes.rot_0 !== undefined;
+                const hasOpacity = geometry.attributes.opacity !== undefined;
+
+                console.log('Gaussian attribute check:', { hasScale, hasRot, hasOpacity, mode });
+
+                const isGaussianSplat = mode === 'splat' && hasScale && hasRot && hasOpacity;
 
                 // SPLAT RENDERING PATH
                 if (isGaussianSplat) {

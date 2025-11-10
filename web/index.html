@@ -132,9 +132,16 @@
         // If it's an absolute path, we need to serve it through our server
         const fileUrl = `/file?path=${encodeURIComponent(filePath)}`;
 
+        // Function to load shader file
+        async function loadShader(url) {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Failed to load shader: ${url}`);
+            return await response.text();
+        }
+
         loader.load(
             fileUrl,
-            (geometry) => {
+            async (geometry) => {
                 loadingDiv.style.display = 'none';
 
                 // Compute normals if not present
@@ -142,6 +149,161 @@
                     geometry.computeVertexNormals();
                 }
 
+                // Check if this is a Gaussian splat file
+                const isGaussianSplat = mode === 'splat' && (
+                    geometry.attributes.scale_0 &&
+                    geometry.attributes.rot_0 &&
+                    geometry.attributes.opacity
+                );
+
+                // SPLAT RENDERING PATH
+                if (isGaussianSplat) {
+                    console.log('Rendering as Gaussian Splats');
+
+                    // Load shaders
+                    let vertexShader, fragmentShader;
+                    try {
+                        [vertexShader, fragmentShader] = await Promise.all([
+                            loadShader('splat.vert'),
+                            loadShader('splat.frag')
+                        ]);
+                    } catch (error) {
+                        console.error('Failed to load splat shaders:', error);
+                        alert('Error loading splat shaders. Falling back to point cloud rendering.');
+                        // Fall through to point cloud rendering
+                    }
+
+                    if (vertexShader && fragmentShader) {
+                        // Parse Gaussian attributes from PLY
+                        const numGaussians = geometry.attributes.position.count;
+
+                        // Extract instance attributes
+                        const centers = geometry.attributes.position.array;
+                        const scales = new Float32Array(numGaussians * 3);
+                        const rotations = new Float32Array(numGaussians * 4);
+                        const opacities = new Float32Array(numGaussians);
+                        const colors = new Float32Array(numGaussians * 3);
+
+                        // Read scales
+                        for (let i = 0; i < numGaussians; i++) {
+                            scales[i * 3 + 0] = geometry.attributes.scale_0.array[i];
+                            scales[i * 3 + 1] = geometry.attributes.scale_1.array[i];
+                            scales[i * 3 + 2] = geometry.attributes.scale_2.array[i];
+                        }
+
+                        // Read rotations (quaternion wxyz)
+                        for (let i = 0; i < numGaussians; i++) {
+                            rotations[i * 4 + 0] = geometry.attributes.rot_0.array[i]; // w
+                            rotations[i * 4 + 1] = geometry.attributes.rot_1.array[i]; // x
+                            rotations[i * 4 + 2] = geometry.attributes.rot_2.array[i]; // y
+                            rotations[i * 4 + 3] = geometry.attributes.rot_3.array[i]; // z
+                        }
+
+                        // Read opacities
+                        for (let i = 0; i < numGaussians; i++) {
+                            opacities[i] = geometry.attributes.opacity.array[i];
+                        }
+
+                        // Read colors (from f_dc_* or color attribute)
+                        if (geometry.attributes.f_dc_0) {
+                            for (let i = 0; i < numGaussians; i++) {
+                                colors[i * 3 + 0] = geometry.attributes.f_dc_0.array[i];
+                                colors[i * 3 + 1] = geometry.attributes.f_dc_1.array[i];
+                                colors[i * 3 + 2] = geometry.attributes.f_dc_2.array[i];
+                            }
+                        } else if (geometry.attributes.color) {
+                            colors.set(geometry.attributes.color.array);
+                        }
+
+                        // Flip Y-axis and center
+                        geometry.scale(1, -1, 1);
+                        geometry.computeBoundingBox();
+                        const center = new THREE.Vector3();
+                        geometry.boundingBox.getCenter(center);
+                        geometry.translate(-center.x, -center.y, -center.z);
+
+                        // Create instanced quad geometry
+                        const quadGeometry = new THREE.BufferGeometry();
+                        const quadPositions = new Float32Array([
+                            -1, -1,
+                             1, -1,
+                            -1,  1,
+                             1,  1
+                        ]);
+                        const quadIndices = new Uint16Array([0, 1, 2, 2, 1, 3]);
+                        quadGeometry.setAttribute('position', new THREE.BufferAttribute(quadPositions, 2));
+                        quadGeometry.setIndex(new THREE.BufferAttribute(quadIndices, 1));
+
+                        // Add instance attributes
+                        quadGeometry.setAttribute('center', new THREE.InstancedBufferAttribute(centers, 3));
+                        quadGeometry.setAttribute('scale', new THREE.InstancedBufferAttribute(scales, 3));
+                        quadGeometry.setAttribute('rotation', new THREE.InstancedBufferAttribute(rotations, 4));
+                        quadGeometry.setAttribute('opacity', new THREE.InstancedBufferAttribute(opacities, 1));
+                        quadGeometry.setAttribute('color', new THREE.InstancedBufferAttribute(colors, 3));
+
+                        // Create shader material
+                        const splatMaterial = new THREE.RawShaderMaterial({
+                            vertexShader: vertexShader,
+                            fragmentShader: fragmentShader,
+                            uniforms: {
+                                projectionMatrix: { value: camera.projectionMatrix },
+                                modelViewMatrix: { value: new THREE.Matrix4() },
+                                viewport: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+                                scale_modifier: { value: 1.0 }
+                            },
+                            transparent: true,
+                            depthTest: true,
+                            depthWrite: false,
+                            blending: THREE.NormalBlending
+                        });
+
+                        // Create mesh
+                        const splatMesh = new THREE.Mesh(quadGeometry, splatMaterial);
+                        scene.add(splatMesh);
+                        pointsObject = splatMesh; // Store reference for controls
+
+                        // Update uniforms on render
+                        const originalRender = renderer.render.bind(renderer);
+                        renderer.render = function(scene, camera) {
+                            if (splatMaterial.uniforms) {
+                                splatMaterial.uniforms.modelViewMatrix.value.multiplyMatrices(
+                                    camera.matrixWorldInverse,
+                                    splatMesh.matrixWorld
+                                );
+                                splatMaterial.uniforms.viewport.value.set(window.innerWidth, window.innerHeight);
+                            }
+                            originalRender(scene, camera);
+                        };
+
+                        // Update file info
+                        const boundingBox = geometry.boundingBox;
+                        const size = new THREE.Vector3();
+                        boundingBox.getSize(size);
+                        const maxDim = Math.max(size.x, size.y, size.z);
+
+                        fileInfoDiv.innerHTML = `
+                            <strong>File:</strong> ${filePath.split('/').pop()}<br>
+                            <strong>Mode:</strong> Gaussian Splats<br>
+                            <strong>Gaussians:</strong> ${numGaussians.toLocaleString()}<br>
+                            <strong>Size:</strong> ${maxDim.toFixed(2)} units
+                        `;
+
+                        // Adjust camera
+                        const dist = maxDim * 2;
+                        camera.position.set(dist, dist * 0.5, dist);
+                        camera.lookAt(0, 0, 0);
+                        controls.update();
+
+                        console.log('Loaded Gaussian Splats:', {
+                            gaussians: numGaussians,
+                            bounds: size
+                        });
+
+                        return; // Skip point cloud rendering
+                    }
+                }
+
+                // POINT CLOUD RENDERING PATH (fallback)
                 // Check for color attributes
                 // PLY files can have 'color', 'red/green/blue', or no colors
                 let hasColors = false;

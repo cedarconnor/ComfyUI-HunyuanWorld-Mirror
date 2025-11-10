@@ -294,8 +294,8 @@ class HWMInference:
             },
         }
 
-    RETURN_TYPES = ("DEPTH", "NORMALS", "POINTS3D", "POSES", "INTRINSICS", "GAUSSIANS")
-    RETURN_NAMES = ("depth", "normals", "points3d", "camera_poses", "camera_intrinsics", "gaussians")
+    RETURN_TYPES = ("DEPTH", "NORMALS", "POINTS3D", "POSES", "INTRINSICS", "GAUSSIANS", "CONFIDENCE", "CONFIDENCE", "CONFIDENCE")
+    RETURN_NAMES = ("depth", "normals", "points3d", "camera_poses", "camera_intrinsics", "gaussians", "depth_conf", "normals_conf", "pts3d_conf")
     FUNCTION = "infer"
     CATEGORY = "HunyuanWorld-Mirror/inference"
 
@@ -357,6 +357,10 @@ class HWMInference:
             all_gaussian_colors = []
             all_gaussian_sh = []
             all_gaussian_opacities = []
+            # Confidence maps
+            all_depth_conf = []
+            all_normals_conf = []
+            all_pts3d_conf = []
 
             for batch_idx in range(num_batches):
                 start_idx = batch_idx * batch_size
@@ -387,6 +391,11 @@ class HWMInference:
                 poses = outputs.get('camera_poses', outputs.get('pred_poses', None))
                 intrinsics = outputs.get('camera_intrinsics', outputs.get('camera_intrs', None))
 
+                # Extract confidence maps
+                depth_conf = outputs.get('depth_conf', outputs.get('pred_depth_conf', None))
+                normals_conf = outputs.get('normals_conf', outputs.get('pred_normals_conf', None))
+                pts3d_conf = outputs.get('pts3d_conf', outputs.get('pred_pts3d_conf', None))
+
                 if depth is not None:
                     all_depth.append(depth)
                 if normals is not None:
@@ -397,6 +406,14 @@ class HWMInference:
                     all_poses.append(poses)
                 if intrinsics is not None:
                     all_intrinsics.append(intrinsics)
+
+                # Collect confidence maps
+                if depth_conf is not None:
+                    all_depth_conf.append(depth_conf)
+                if normals_conf is not None:
+                    all_normals_conf.append(normals_conf)
+                if pts3d_conf is not None:
+                    all_pts3d_conf.append(pts3d_conf)
 
                 # Extract Gaussian parameters from splats dictionary
                 splats = outputs.get('splats', None)
@@ -497,6 +514,11 @@ class HWMInference:
             poses = concat_tensors(all_poses)
             intrinsics = concat_tensors(all_intrinsics)
 
+            # Concatenate confidence maps
+            depth_conf = concat_tensors(all_depth_conf)
+            normals_conf = concat_tensors(all_normals_conf)
+            pts3d_conf = concat_tensors(all_pts3d_conf)
+
             # Concatenate Gaussian parameters
             gaussian_params = {
                 'means': concat_tensors(all_gaussian_means),
@@ -519,12 +541,14 @@ class HWMInference:
             print(f"  Points3D: {pts3d.shape if pts3d is not None else 'N/A'}")
             print(f"  Poses: {poses.shape if poses is not None else 'N/A'}")
             print(f"  Intrinsics: {intrinsics.shape if intrinsics is not None else 'N/A'}")
+            if depth_conf is not None:
+                print(f"  Confidence Maps: Available")
             print("=" * 60)
 
             # Clear memory
             wrapper.clear_memory()
 
-            return (depth, normals, pts3d, poses, intrinsics, gaussian_params)
+            return (depth, normals, pts3d, poses, intrinsics, gaussian_params, depth_conf, normals_conf, pts3d_conf)
 
         except Exception as e:
             print(f"✗ Inference error: {e}")

@@ -18,7 +18,7 @@ Transform 2D images into 3D worlds using Tencent's HunyuanWorld-Mirror model dir
 - **🌐 Interactive 3D Viewer** - View point clouds and Gaussian splats directly in your browser with WebGL
 - **💾 Memory Efficient** - Automatic batch processing handles sequences of any length
 - **🚀 Easy Installation** - One-command setup for Windows and Linux
-- **🎛️ Confidence Filtering** - Remove low-quality points based on model confidence
+- **🎯 Confidence-Based Filtering** - Remove low-quality points using model confidence scores
 - **📏 Automatic Resizing** - Smart preprocessing handles any input resolution
 
 ---
@@ -265,6 +265,14 @@ Main inference node that generates all 3D predictions in one pass.
 - `camera_poses` (POSES): Camera-to-world matrices
 - `camera_intrinsics` (INTRINSICS): Intrinsic matrices
 - `gaussians` (GAUSSIANS): 3D Gaussian splat parameters
+- `depth_conf` (CONFIDENCE): Per-pixel depth confidence (optional)
+- `normals_conf` (CONFIDENCE): Per-pixel normal confidence (optional)
+- `pts3d_conf` (CONFIDENCE): Per-point 3D confidence (optional)
+
+**Confidence Maps:**
+- Model provides optional confidence scores for predictions
+- Higher values indicate more reliable predictions
+- Use with `confidence_threshold` in SavePointCloud to filter noisy points
 
 **Batch Processing:**
 - **8-16 batch size**: Good for 50-100 frames on 12GB VRAM

@@ -33,6 +33,14 @@ class ViewerHTTPHandler(SimpleHTTPRequestHandler):
             # Serve static files from web directory
             super().do_GET()
 
+    def end_headers(self):
+        """Add cache-control headers to prevent browser caching."""
+        # Disable caching for all files to ensure fresh content
+        self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+        self.send_header('Pragma', 'no-cache')
+        self.send_header('Expires', '0')
+        super().end_headers()
+
     def serve_file_from_params(self):
         """Serve a file from the path specified in query parameters."""
         try:

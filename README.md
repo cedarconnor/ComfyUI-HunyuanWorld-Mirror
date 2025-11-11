@@ -8,7 +8,9 @@ Transform 2D images into 3D worlds using Tencent's HunyuanWorld-Mirror model dir
 
 ## 🎥 Demo
 
-![Example Output](examples/MirrorSample1.png)
+![Example Output 1](examples/MirrorSample1.png)
+
+![Example Output 2](examples/MirrorSample2.png)
 
 https://github.com/user-attachments/assets/MirrorSample1.mp4
 

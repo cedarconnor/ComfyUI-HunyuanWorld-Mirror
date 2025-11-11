@@ -1,12 +1,10 @@
 // Gaussian Splat Fragment Shader
-// Evaluates Gaussian falloff and applies alpha blending
+// Evaluates Gaussian falloff and lets Three.js handle color space conversion.
 
 precision highp float;
 
 varying vec4 vColor;
 varying vec2 vPosition;
-
-uniform float uExposure;
 
 void main() {
     // Compute Gaussian weight based on distance from center
@@ -26,18 +24,9 @@ void main() {
         discard;
     }
 
-    // Process linear color with exposure and tone mapping
-    vec3 colorLinear = vColor.rgb;
+    // Clamp to avoid NaNs while keeping colors in linear space
+    vec3 color = clamp(vColor.rgb, 0.0, 1.0);
 
-    // Apply exposure
-    vec3 color = colorLinear * uExposure;
-
-    // Reinhard tone mapping (compress highlights)
-    color = color / (color + vec3(1.0));
-
-    // Gamma correction: linear → sRGB
-    color = pow(max(color, vec3(0.0)), vec3(1.0 / 2.2));
-
-    // Output color with computed alpha
+    // Output color with computed alpha (Three.js handles gamma corrections)
     gl_FragColor = vec4(color * alpha, alpha);
 }

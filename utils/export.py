@@ -214,7 +214,7 @@ class ExportUtils:
         opacities: np.ndarray,
         sh: Optional[np.ndarray] = None,
         filter_scale_percentile: float = 95.0,
-        normalize_colors: bool = True
+        normalize_colors: bool = False
     ) -> str:
         """
         Save 3D Gaussians in standard 3DGS PLY format with outlier filtering.
@@ -228,7 +228,7 @@ class ExportUtils:
             opacities: Opacity values [N, 1] or [N]
             sh: Spherical harmonics [N, SH_COEFFS, 3] (optional)
             filter_scale_percentile: Filter Gaussians with scales > this percentile (0-100, default 95)
-            normalize_colors: Apply percentile-based color normalization to reduce high contrast (default True)
+            normalize_colors: Apply percentile-based color normalization to reduce high contrast (default False)
 
         Returns:
             filepath: Path to saved file

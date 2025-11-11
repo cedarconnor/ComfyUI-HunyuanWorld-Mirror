@@ -346,6 +346,8 @@ Export 3D Gaussian Splatting representation.
 - `filepath` (STRING): Output PLY file path
 - `filter_scale_percentile` (FLOAT): Remove outlier Gaussians (default: 95.0)
 - `include_sh` (BOOLEAN): Include spherical harmonics
+- `normalize_colors` (BOOLEAN): Optional percentile-based color remapping (default: off to preserve original colors)
+- `subsample_factor` (INT): Keep every Nth Gaussian for lighter files (default: 1)
 
 **Outputs:**
 - `filepath` (STRING): Saved file location
@@ -354,6 +356,7 @@ Export 3D Gaussian Splatting representation.
 - Standard 3DGS PLY format
 - Compatible with SuperSplat, gsplat viewers
 - Scale filtering removes overly large Gaussians (outliers)
+- Leave `normalize_colors` disabled if you want the viewer to match the input imagery exactly
 
 ---
 

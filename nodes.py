@@ -939,8 +939,8 @@ class Save3DGaussians:
                     "tooltip": "Remove Gaussians with unusually large scales (outliers/artifacts). 95=keep 95% of Gaussians, 90=more aggressive filtering. 0=disable filtering, 100=keep all."
                 }),
                 "normalize_colors": ("BOOLEAN", {
-                    "default": True,
-                    "tooltip": "Apply percentile-based color normalization to reduce high contrast artifacts. Recommended: True for better color appearance in viewers."
+                    "default": False,
+                    "tooltip": "Apply percentile-based color normalization to reduce high contrast artifacts. Leave off to preserve the model's original colors."
                 }),
                 "subsample_factor": ("INT", {
                     "default": 1,

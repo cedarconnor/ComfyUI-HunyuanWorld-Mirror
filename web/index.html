@@ -259,8 +259,7 @@
                                 projectionMatrix: { value: camera.projectionMatrix },
                                 modelViewMatrix: { value: new THREE.Matrix4() },
                                 viewport: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
-                                scale_modifier: { value: 1.0 },
-                                uExposure: { value: 1.0 }
+                                scale_modifier: { value: 1.0 }
                             },
                             transparent: true,
                             depthTest: true,
@@ -320,24 +319,6 @@
                 let hasColors = false;
                 if (geometry.attributes.color) {
                     hasColors = true;
-
-                    // Fix color contrast issue in splat mode
-                    // Gaussian splat colors are often in linear space and need gamma correction
-                    if (mode === 'splat') {
-                        const colors = geometry.attributes.color;
-                        const count = colors.count;
-
-                        // Apply gamma correction: linear to sRGB (gamma ≈ 2.2)
-                        for (let i = 0; i < count * 3; i++) {
-                            const linearValue = colors.array[i];
-                            // Use sRGB transfer function
-                            const sRGBValue = linearValue <= 0.0031308
-                                ? 12.92 * linearValue
-                                : 1.055 * Math.pow(linearValue, 1.0 / 2.4) - 0.055;
-                            colors.array[i] = Math.max(0, Math.min(1, sRGBValue));
-                        }
-                        colors.needsUpdate = true;
-                    }
                 } else {
                     // PLYLoader might store colors differently, check for RGB components
                     // Some PLY files store as separate red/green/blue attributes

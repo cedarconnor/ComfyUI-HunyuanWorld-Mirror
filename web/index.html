@@ -89,6 +89,10 @@
         });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
+
+        // Set output color space to sRGB for proper color handling
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+
         document.body.appendChild(renderer.domElement);
 
         // Controls
@@ -255,7 +259,8 @@
                                 projectionMatrix: { value: camera.projectionMatrix },
                                 modelViewMatrix: { value: new THREE.Matrix4() },
                                 viewport: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
-                                scale_modifier: { value: 1.0 }
+                                scale_modifier: { value: 1.0 },
+                                uExposure: { value: 1.0 }
                             },
                             transparent: true,
                             depthTest: true,
@@ -546,7 +551,7 @@
         // Flip 180 degrees button
         document.getElementById('flip180').addEventListener('click', () => {
             if (pointsObject) {
-                pointsObject.rotation.y += Math.PI;
+                pointsObject.rotation.x += Math.PI;
                 console.log('Flipped 180 degrees');
             }
         });
@@ -580,7 +585,7 @@
                     break;
                 case 'f':
                     if (pointsObject) {
-                        pointsObject.rotation.y += Math.PI;
+                        pointsObject.rotation.x += Math.PI;
                         console.log('Flipped 180 degrees');
                     }
                     break;

@@ -6,6 +6,8 @@ precision highp float;
 varying vec4 vColor;
 varying vec2 vPosition;
 
+uniform float uExposure;
+
 void main() {
     // Compute Gaussian weight based on distance from center
     // vPosition is in [-1, 1] range for the quad
@@ -24,6 +26,18 @@ void main() {
         discard;
     }
 
+    // Process linear color with exposure and tone mapping
+    vec3 colorLinear = vColor.rgb;
+
+    // Apply exposure
+    vec3 color = colorLinear * uExposure;
+
+    // Reinhard tone mapping (compress highlights)
+    color = color / (color + vec3(1.0));
+
+    // Gamma correction: linear → sRGB
+    color = pow(max(color, vec3(0.0)), vec3(1.0 / 2.2));
+
     // Output color with computed alpha
-    gl_FragColor = vec4(vColor.rgb * alpha, alpha);
+    gl_FragColor = vec4(color * alpha, alpha);
 }

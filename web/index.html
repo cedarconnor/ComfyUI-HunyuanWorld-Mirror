@@ -546,7 +546,7 @@
         // Flip 180 degrees button
         document.getElementById('flip180').addEventListener('click', () => {
             if (pointsObject) {
-                pointsObject.rotation.y += Math.PI;
+                pointsObject.rotation.x += Math.PI;
                 console.log('Flipped 180 degrees');
             }
         });
@@ -580,7 +580,7 @@
                     break;
                 case 'f':
                     if (pointsObject) {
-                        pointsObject.rotation.y += Math.PI;
+                        pointsObject.rotation.x += Math.PI;
                         console.log('Flipped 180 degrees');
                     }
                     break;

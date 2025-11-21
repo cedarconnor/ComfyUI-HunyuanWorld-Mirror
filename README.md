@@ -119,50 +119,7 @@ This ComfyUI node pack brings these capabilities to your image generation workfl
 - **12GB+ VRAM** recommended (RTX 3060 or better)
 - **16GB+ RAM** system memory
 
-### Windows Installation
-
-1. **Navigate to your ComfyUI custom nodes folder:**
-   ```bash
-   cd ComfyUI/custom_nodes/
-   ```
-
-2. **Clone this repository:**
-   ```bash
-   git clone https://github.com/cedarconnor/ComfyUI-HunyuanWorld-Mirror.git
-   cd ComfyUI-HunyuanWorld-Mirror
-   ```
-
-3. **Run the installation script:**
-   ```bash
-   install.bat
-   ```
-
 4. **Restart ComfyUI**
-
-### Linux Installation
-
-1. **Navigate to your ComfyUI custom nodes folder:**
-   ```bash
-   cd ComfyUI/custom_nodes/
-   ```
-
-2. **Clone this repository:**
-   ```bash
-   git clone https://github.com/cedarconnor/ComfyUI-HunyuanWorld-Mirror.git
-   cd ComfyUI-HunyuanWorld-Mirror
-   ```
-
-3. **Run the installation script:**
-   ```bash
-   chmod +x install.sh
-   ./install.sh
-   ```
-
-4. **Restart ComfyUI**
-
-### Model Installation
-
-The HunyuanWorld-Mirror model files need to be placed in ComfyUI's models directory:
 
 1. **Create the models directory** (if it doesn't exist):
    ```bash
